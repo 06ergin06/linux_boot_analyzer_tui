@@ -8,6 +8,7 @@ use ratatui::widgets::{
 
 use crate::app::{App, Overlay, ProfilesView, Tab};
 use crate::autostart::AutostartEntry;
+use crate::i18n;
 use crate::privilege::Action;
 use crate::system::Service;
 use crate::{profiles, service_db};
@@ -57,17 +58,22 @@ fn render_analysis(frame: &mut Frame, app: &App, area: Rect) {
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(" Analysis "))
+            .block(Block::bordered().title(title("tab_analysis")))
             .wrap(Wrap { trim: false })
             .scroll((app.analysis_scroll, 0)),
         area,
     );
 }
 
+/// A bordered block title for a translated label.
+fn title(key: &str) -> String {
+    format!(" {} ", i18n::t(key))
+}
+
 fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     let Some(data) = &app.data else {
         frame.render_widget(
-            Paragraph::new(status_text(app)).block(Block::bordered().title(" Services ")),
+            Paragraph::new(status_text(app)).block(Block::bordered().title(title("tab_services"))),
             area,
         );
         return;
@@ -76,7 +82,7 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     if let Err(err) = &data.services {
         frame.render_widget(
             Paragraph::new(err.as_str())
-                .block(Block::bordered().title(" Services "))
+                .block(Block::bordered().title(title("tab_services")))
                 .wrap(Wrap { trim: true }),
             area,
         );
@@ -95,8 +101,14 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
 
     render_filter_bar(frame, app, filter_area);
 
-    let header =
-        Row::new(["Service", "Active", "Enabled", "Time", "Tip"]).style(Style::new().bold());
+    let header = Row::new([
+        i18n::t("service_name"),
+        i18n::t("filter_active"),
+        i18n::t("tui_boot_config"),
+        i18n::t("time"),
+        i18n::t("tui_tip"),
+    ])
+    .style(Style::new().bold());
     let rows = visible.iter().map(|service| {
         let tip = service_db::lookup(&service.name)
             .map(|entry| entry.tip.label())
@@ -104,8 +116,8 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
         let time = times.get(service.name.as_str()).copied().unwrap_or("-");
         Row::new([
             service.name.as_str(),
-            service.active.as_str(),
-            service.enabled.as_str(),
+            state_label(&service.active),
+            state_label(&service.enabled),
             time,
             tip,
         ])
@@ -122,7 +134,7 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
         ],
     )
     .header(header)
-    .block(Block::bordered().title(" Services "))
+    .block(Block::bordered().title(title("tab_services")))
     .row_highlight_style(Style::new().reversed())
     .highlight_symbol("> ");
 
@@ -136,12 +148,15 @@ fn render_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
     let search = if app.searching || !app.query.is_empty() {
         format!("/{}", app.query)
     } else {
-        "/ search".to_string()
+        format!("/ {}", i18n::t("tui_search"))
     };
     let line = format!(
-        "f: status={}   t: tip={}   s: sort={}   {}",
+        "f: {}={}   t: {}={}   s: {}={}   {}",
+        i18n::t("tui_status"),
         app.status_filter.label(),
+        i18n::t("tui_tip_filter"),
         app.tip_filter.label(),
+        i18n::t("tui_sort"),
         app.sort.label(),
         search,
     );
@@ -155,20 +170,20 @@ fn render_service_detail(frame: &mut Frame, service: Option<&Service>, area: Rec
             Some(entry) => vec![
                 Line::from(format!("{} ({})", service.name, entry.tip.label())),
                 Line::from(""),
-                Line::from(entry.desc.as_str()),
-                Line::from(entry.suggestion.as_str()).dim(),
+                Line::from(entry.description()),
+                Line::from(entry.suggestion_text()).dim(),
             ],
             None => vec![
                 Line::from(service.name.as_str()),
-                Line::from("No knowledge-base entry for this service."),
+                Line::from(i18n::t("tui_no_kb_entry")),
             ],
         },
-        None => vec![Line::from("No service selected.")],
+        None => vec![Line::from(i18n::t("tui_no_service_selected"))],
     };
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(" Details "))
+            .block(Block::bordered().title(title("tui_details")))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -176,11 +191,11 @@ fn render_service_detail(frame: &mut Frame, service: Option<&Service>, area: Rec
 
 fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
     let entries = app.autostart_entries();
-    let block = Block::bordered().title(" Autostart ");
+    let block = Block::bordered().title(title("tab_autostart"));
 
     if entries.is_empty() {
         frame.render_widget(
-            Paragraph::new("No autostart entries. Press 'n' to add one.")
+            Paragraph::new(i18n::t("no_autostart_apps"))
                 .block(block)
                 .wrap(Wrap { trim: true }),
             area,
@@ -198,13 +213,19 @@ fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
     let rows = entries.iter().enumerate().map(|(index, entry)| {
         Row::new([
             entry.name.as_str(),
-            if entry.enabled { "enabled" } else { "disabled" },
+            enabled_label(entry.enabled),
             delays[index].as_str(),
             entry.exec.as_str(),
         ])
     });
 
-    let header = Row::new(["Name", "State", "Delay", "Command"]).style(Style::new().bold());
+    let header = Row::new([
+        i18n::t("tui_name"),
+        i18n::t("state"),
+        i18n::t("delay"),
+        i18n::t("komut"),
+    ])
+    .style(Style::new().bold());
     let table = Table::new(
         rows,
         [
@@ -229,27 +250,51 @@ fn render_autostart_detail(frame: &mut Frame, entry: Option<&AutostartEntry>, ar
     let lines = match entry {
         Some(entry) => vec![
             Line::from(entry.name.as_str()),
-            Line::from(format!("Command: {}", entry.exec)),
+            Line::from(format!("{} {}", i18n::t("komut"), entry.exec)),
             Line::from(format!(
-                "Delay: {}s    Enabled: {}",
-                entry.delay, entry.enabled
+                "{}: {}s    {}: {}",
+                i18n::t("delay"),
+                entry.delay,
+                i18n::t("state"),
+                enabled_label(entry.enabled)
             )),
-            Line::from(format!("File: {}", entry.path.display())),
-            Line::from("space: toggle   [ ]: delay   x: remove").dim(),
+            Line::from(format!("{} {}", i18n::t("tui_file"), entry.path.display())),
         ],
-        None => vec![Line::from("No entry selected.")],
+        None => vec![Line::from(i18n::t("tui_no_entry_selected"))],
     };
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(" Details "))
+            .block(Block::bordered().title(title("tui_details")))
             .wrap(Wrap { trim: true }),
         area,
     );
 }
 
+/// "enabled" / "disabled" for an autostart entry.
+fn enabled_label(enabled: bool) -> &'static str {
+    if enabled {
+        i18n::t("tui_enabled")
+    } else {
+        i18n::t("tui_disabled")
+    }
+}
+
+/// Translated label for a systemd unit state; unknown states pass through.
+fn state_label(state: &str) -> &str {
+    match state {
+        "active" => i18n::t("filter_active"),
+        "inactive" => i18n::t("filter_inactive"),
+        "failed" => i18n::t("tui_state_failed"),
+        "masked" => i18n::t("filter_masked"),
+        "enabled" | "enabled-runtime" => i18n::t("tui_state_enabled"),
+        "disabled" => i18n::t("tui_state_disabled"),
+        other => other,
+    }
+}
+
 fn render_profiles(frame: &mut Frame, app: &App, area: Rect) {
-    let [lists, detail] = Layout::vertical([Constraint::Min(0), Constraint::Length(7)]).areas(area);
+    let [lists, detail] = Layout::vertical([Constraint::Min(0), Constraint::Length(9)]).areas(area);
     let [profiles_area, backups_area] =
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(lists);
 
@@ -260,6 +305,15 @@ fn render_profiles(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
     let ids = profiles::ids();
+    let names: Vec<&str> = ids
+        .iter()
+        .map(|id| {
+            profiles::data()
+                .profiles
+                .get(*id)
+                .map_or(*id, |profile| profile.name())
+        })
+        .collect();
     let counts: Vec<(String, String)> = ids
         .iter()
         .map(|id| {
@@ -268,31 +322,41 @@ fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let rows = ids
-        .iter()
-        .enumerate()
-        .map(|(index, id)| Row::new([*id, counts[index].0.as_str(), counts[index].1.as_str()]));
+    let rows = ids.iter().enumerate().map(|(index, _)| {
+        Row::new([
+            names[index],
+            counts[index].0.as_str(),
+            counts[index].1.as_str(),
+        ])
+    });
 
-    let title = if app.profiles_view == ProfilesView::Profiles {
-        " Profiles (active) "
+    let block_title = if app.profiles_view == ProfilesView::Profiles {
+        format!(" {} {} ", i18n::t("profiller_title"), i18n::t("tui_active"))
     } else {
-        " Profiles "
+        title("profiller_title")
     };
 
     let table = Table::new(
         rows,
         [
             Constraint::Min(14),
-            Constraint::Length(8),
-            Constraint::Length(8),
+            Constraint::Length(12),
+            Constraint::Length(12),
         ],
     )
-    .header(Row::new(["Profile", "Enable", "Disable"]).style(Style::new().bold()))
-    .block(Block::bordered().title(title))
+    .header(
+        Row::new([
+            i18n::t("tui_profile"),
+            i18n::t("tui_enable_count"),
+            i18n::t("tui_disable_count"),
+        ])
+        .style(Style::new().bold()),
+    )
+    .block(Block::bordered().title(block_title))
     .row_highlight_style(Style::new().reversed())
     .highlight_symbol("> ");
 
-    let mut state = TableState::default().with_selected(app.profiles_selected);
+    let mut state = TableState::default().with_selected(Some(app.profiles_selected));
     frame.render_stateful_widget(table, area, &mut state);
 }
 
@@ -308,19 +372,25 @@ fn render_backup_list(frame: &mut Frame, app: &App, area: Rect) {
         .enumerate()
         .map(|(index, backup)| Row::new([backup.name.as_str(), counts[index].as_str()]));
 
-    let title = if app.profiles_view == ProfilesView::Backups {
-        " Restore Points (active) "
+    let block_title = if app.profiles_view == ProfilesView::Backups {
+        format!(
+            " {} {} ",
+            i18n::t("backup_noktalari"),
+            i18n::t("tui_active")
+        )
     } else {
-        " Restore Points "
+        title("backup_noktalari")
     };
 
-    let table = Table::new(rows, [Constraint::Min(20), Constraint::Length(8)])
-        .header(Row::new(["Backup", "Services"]).style(Style::new().bold()))
-        .block(Block::bordered().title(title))
+    let table = Table::new(rows, [Constraint::Min(20), Constraint::Length(12)])
+        .header(
+            Row::new([i18n::t("tui_backup"), i18n::t("tui_services")]).style(Style::new().bold()),
+        )
+        .block(Block::bordered().title(block_title))
         .row_highlight_style(Style::new().reversed())
         .highlight_symbol("> ");
 
-    let mut state = TableState::default().with_selected(app.backups_selected);
+    let mut state = TableState::default().with_selected(Some(app.backups_selected));
     frame.render_stateful_widget(table, area, &mut state);
 }
 
@@ -328,33 +398,46 @@ fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
     let lines = match app.profiles_view {
         ProfilesView::Profiles => match app.selected_profile() {
             Some(id) => {
+                let profile = profiles::data().profiles.get(id);
+                let name = profile.map_or(id, |profile| profile.name());
+                let description = profile.map_or("", |profile| profile.description());
                 let (enable, disable) = profiles::selections(id);
                 vec![
-                    Line::from(format!("Profile: {id}")),
-                    Line::from(format!("Enables:  {}", join_or_dash(&enable))),
-                    Line::from(format!("Disables: {}", join_or_dash(&disable))),
-                    Line::from("Enter/a: apply profile   v: show restore points").dim(),
+                    Line::from(i18n::fill(i18n::t("tui_profile_label"), &[name])),
+                    Line::from(description),
+                    Line::from(""),
+                    Line::from(format!(
+                        "{}: {}",
+                        i18n::t("tui_enable_count"),
+                        join_or_dash(&enable)
+                    )),
+                    Line::from(format!(
+                        "{}: {}",
+                        i18n::t("tui_disable_count"),
+                        join_or_dash(&disable)
+                    )),
                 ]
             }
-            None => vec![Line::from("No profile selected.")],
+            None => vec![Line::from(i18n::t("tui_no_profile_selected"))],
         },
         ProfilesView::Backups => match app.selected_backup() {
             Some(backup) => vec![
                 Line::from(backup.name.as_str()),
-                Line::from(format!("Saved: {}", backup.timestamp)),
-                Line::from(format!("Services: {}", backup.services.len())),
-                Line::from(format!("File: {}", backup.path.display())),
-                Line::from("d: restore   x: delete   b: create new   v: show profiles").dim(),
+                Line::from(format!("{} {}", i18n::t("tui_saved"), backup.timestamp)),
+                Line::from(format!(
+                    "{}: {}",
+                    i18n::t("tui_services"),
+                    backup.services.len()
+                )),
+                Line::from(format!("{} {}", i18n::t("tui_file"), backup.path.display())),
             ],
-            None => vec![Line::from(
-                "No restore point yet. Press 'b' to create one.".to_string(),
-            )],
+            None => vec![Line::from(i18n::t("tui_create_backup_hint"))],
         },
     };
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(" Details "))
+            .block(Block::bordered().title(title("tui_details")))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -380,8 +463,8 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
     // The status line shows the latest command result when there is one.
     let status_text: &str = match (&app.message, app.running) {
         (Some(message), _) => message,
-        (None, true) => "Running...",
-        (None, false) => "q: quit    Up/Down: move    Left/Right: tab    ?: help",
+        (None, true) => i18n::t("tui_running"),
+        (None, false) => i18n::t("tui_bar_global"),
     };
 
     frame.render_widget(Paragraph::new(status_text), status);
@@ -390,32 +473,24 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
 /// The keys that do something right now, so actions are discoverable.
 fn action_hints(app: &App) -> &'static str {
     match app.overlay {
-        Overlay::Menu => return "Enter: choose    Up/Down: move    Esc: cancel",
-        Overlay::Confirm => return "y: confirm    n or Esc: cancel",
-        Overlay::Password => return "Enter: run    Esc: cancel",
-        Overlay::Form => return "Tab: next field    Enter: create    Esc: cancel",
+        Overlay::Menu => return i18n::t("tui_bar_menu"),
+        Overlay::Confirm => return i18n::t("tui_bar_confirm"),
+        Overlay::Password => return i18n::t("tui_bar_password"),
+        Overlay::Form => return i18n::t("tui_bar_form"),
         Overlay::None => {}
     }
 
     if app.info.is_some() {
-        return "Up/Down or j/k: scroll    PageUp/PageDown: page    Esc: close";
+        return i18n::t("tui_bar_info");
     }
 
     match app.tab {
-        Tab::Analysis => "o: disable suggested services    w: write report    r: reload",
-        Tab::Services => {
-            "Enter/a: actions (enable, disable, start, stop, mask)    l: journal    d/D: dependencies    /: search    f/t/s: filters    r: reload"
-        }
-        Tab::Autostart => {
-            "space: enable/disable    [ ]: delay -/+1s    n: add    x: remove    r: reload"
-        }
+        Tab::Analysis => i18n::t("tui_bar_analysis"),
+        Tab::Services => i18n::t("tui_bar_services"),
+        Tab::Autostart => i18n::t("tui_bar_autostart"),
         Tab::Profiles => match app.profiles_view {
-            ProfilesView::Profiles => {
-                "Enter/a: apply profile    b: create restore point    v: show restore points    r: reload"
-            }
-            ProfilesView::Backups => {
-                "d: restore    x: delete    b: create restore point    v: show profiles    r: reload"
-            }
+            ProfilesView::Profiles => i18n::t("tui_bar_profiles"),
+            ProfilesView::Backups => i18n::t("tui_bar_backups"),
         },
     }
 }
@@ -434,7 +509,7 @@ fn render_action_menu(frame: &mut Frame, app: &App) {
     let unit = app
         .selected_service()
         .map(|service| service.name.as_str())
-        .unwrap_or("service");
+        .unwrap_or(i18n::t("service_name"));
 
     let area = centered_rect(40, Action::ALL.len() as u16 + 2, frame.area());
     frame.render_widget(Clear, area);
@@ -456,34 +531,34 @@ fn render_confirm(frame: &mut Frame, app: &App) {
     let text = vec![
         Line::from(app.confirmation_prompt()),
         Line::from(""),
-        Line::from("y / Enter to confirm, n / Esc to cancel").dim(),
+        Line::from(i18n::t("tui_confirm_keys")).dim(),
     ];
     frame.render_widget(
         Paragraph::new(text)
-            .block(Block::bordered().title(" Confirm "))
+            .block(Block::bordered().title(title("tui_confirm")))
             .wrap(Wrap { trim: true }),
         area,
     );
 }
 
 fn render_form(frame: &mut Frame, app: &App) {
-    const LABELS: [&str; 2] = ["Name", "Command"];
+    let labels = [i18n::t("tui_name"), i18n::t("komut")];
 
-    let area = centered_rect(60, LABELS.len() as u16 + 4, frame.area());
+    let area = centered_rect(60, labels.len() as u16 + 4, frame.area());
     frame.render_widget(Clear, area);
 
     let mut lines = Vec::new();
-    for (index, label) in LABELS.iter().enumerate() {
+    for (index, label) in labels.iter().enumerate() {
         let value = app.form_values.get(index).map(String::as_str).unwrap_or("");
         let marker = if index == app.form_index { ">" } else { " " };
         lines.push(Line::from(format!("{marker} {label}: {value}")));
     }
     lines.push(Line::from(""));
-    lines.push(Line::from("Tab: next field   Enter: create   Esc: cancel").dim());
+    lines.push(Line::from(i18n::t("tui_bar_form")).dim());
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(" New Autostart Entry "))
+            .block(Block::bordered().title(title("tui_new_autostart")))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -495,14 +570,14 @@ fn render_password(frame: &mut Frame, app: &App) {
 
     let masked = "*".repeat(app.password_input.chars().count());
     let text = vec![
-        Line::from("sudo password:"),
+        Line::from(i18n::t("tui_sudo_password")),
         Line::from(masked),
         Line::from(""),
-        Line::from("Enter to run, Esc to cancel").dim(),
+        Line::from(i18n::t("tui_password_keys")).dim(),
     ];
     frame.render_widget(
         Paragraph::new(text)
-            .block(Block::bordered().title(" Authentication "))
+            .block(Block::bordered().title(title("tui_authentication")))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -527,7 +602,7 @@ fn render_info(frame: &mut Frame, app: &App) {
         .map(|line| Line::from(line.as_str()))
         .collect();
     let paragraph = Paragraph::new(text)
-        .block(Block::bordered().title(format!(" {} — Esc: close, j/k: scroll ", info.title)))
+        .block(Block::bordered().title(format!(" {} — {} ", info.title, i18n::t("tui_info_hint"))))
         .scroll((info.scroll, 0))
         .wrap(Wrap { trim: false });
 
@@ -548,9 +623,9 @@ fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
 
 fn status_text(app: &App) -> &'static str {
     if app.loading {
-        "Loading..."
+        i18n::t("tui_loading")
     } else {
-        "No data available."
+        i18n::t("tui_no_data")
     }
 }
 

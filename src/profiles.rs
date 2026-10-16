@@ -5,22 +5,34 @@ use std::sync::LazyLock;
 
 use serde::Deserialize;
 
+use crate::i18n;
+
 const PROFILES_JSON: &str = include_str!("../assets/profiles_data.json");
 
 /// One optimization profile.
-///
-/// The locale keys and icon are kept for a future port of the i18n layer and
-/// are not read yet.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Profile {
-    #[allow(dead_code)]
+    /// i18n key for the profile name, e.g. `prof_min_name`.
     pub name_tr_key: String,
+    /// Icon name; the GTK application draws it, this TUI does not.
     #[allow(dead_code)]
     pub icon: String,
-    #[allow(dead_code)]
+    /// i18n key for the profile description.
     pub desc_tr_key: String,
     /// Service name -> wanted unit-file state (`enable` or `disable`).
     pub services: HashMap<String, String>,
+}
+
+impl Profile {
+    /// Profile name in the active language.
+    pub fn name(&self) -> &str {
+        i18n::t(&self.name_tr_key)
+    }
+
+    /// Profile description in the active language.
+    pub fn description(&self) -> &str {
+        i18n::t(&self.desc_tr_key)
+    }
 }
 
 /// The whole `profiles_data.json` file.
@@ -101,11 +113,15 @@ impl Plan {
     /// One-line summary for the confirmation dialog.
     pub fn summary(&self) -> String {
         format!(
-            "enable {}, start {}, disable {}, stop {}",
+            "{} {} · {} {} · {} {} · {} {}",
+            i18n::t("tui_plan_enable"),
             self.enable.len(),
+            i18n::t("tui_plan_start"),
             self.start.len(),
+            i18n::t("tui_plan_disable"),
             self.disable.len(),
-            self.stop.len()
+            i18n::t("tui_plan_stop"),
+            self.stop.len(),
         )
     }
 }
@@ -138,6 +154,23 @@ mod tests {
         let profile = &data().profiles["minimum"];
         for name in enable.iter().chain(disable.iter()) {
             assert!(profile.services.contains_key(name));
+        }
+    }
+
+    #[test]
+    fn profiles_have_translated_names_and_descriptions() {
+        for id in ids() {
+            let profile = &data().profiles[id];
+            assert_ne!(
+                profile.name(),
+                profile.name_tr_key,
+                "missing name translation for {id}"
+            );
+            assert_ne!(
+                profile.description(),
+                profile.desc_tr_key,
+                "missing description translation for {id}"
+            );
         }
     }
 

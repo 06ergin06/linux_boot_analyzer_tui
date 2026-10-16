@@ -6,6 +6,8 @@ use std::sync::LazyLock;
 
 use serde::Deserialize;
 
+use crate::i18n::{self, Lang};
+
 /// Embedded at compile time so the binary works from any working directory.
 const SERVICES_JSON: &str = include_str!("../assets/services_data.json");
 
@@ -27,26 +29,51 @@ impl Tip {
     /// Short label shown in the UI.
     pub fn label(self) -> &'static str {
         match self {
-            Tip::Suggestion => "Suggestion",
-            Tip::Critical => "Critical",
-            Tip::Required => "Required",
+            Tip::Suggestion => i18n::t("tui_tip_suggestion"),
+            Tip::Critical => i18n::t("tui_tip_critical"),
+            Tip::Required => i18n::t("tui_tip_required"),
         }
     }
 }
 
-/// One entry of `services_data.json`. The `desc`/`suggestion` fields are
-/// Turkish because they come from the upstream data file.
+/// One entry of `services_data.json`. The plain `desc`/`suggestion` fields are
+/// Turkish because they come from the upstream data file; the `_en` variants
+/// hold the English translations.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServiceEntry {
     pub desc: String,
     pub tip: Tip,
     pub suggestion: String,
-    /// Reserved for the English locale, which is not ported yet.
-    #[allow(dead_code)]
     pub desc_en: String,
-    /// Reserved for the English locale, which is not ported yet.
-    #[allow(dead_code)]
     pub oneri_en: String,
+}
+
+impl ServiceEntry {
+    /// Description in the active language, falling back to the other one.
+    pub fn description(&self) -> &str {
+        let (primary, fallback) = match i18n::lang() {
+            Lang::En => (&self.desc_en, &self.desc),
+            Lang::Tr => (&self.desc, &self.desc_en),
+        };
+        if primary.is_empty() {
+            fallback
+        } else {
+            primary
+        }
+    }
+
+    /// Suggestion in the active language, falling back to the other one.
+    pub fn suggestion_text(&self) -> &str {
+        let (primary, fallback) = match i18n::lang() {
+            Lang::En => (&self.oneri_en, &self.suggestion),
+            Lang::Tr => (&self.suggestion, &self.oneri_en),
+        };
+        if primary.is_empty() {
+            fallback
+        } else {
+            primary
+        }
+    }
 }
 
 static ENTRIES: LazyLock<HashMap<String, ServiceEntry>> = LazyLock::new(|| {

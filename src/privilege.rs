@@ -6,6 +6,8 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use crate::i18n;
+
 /// A unit action the UI can trigger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -30,12 +32,24 @@ impl Action {
 
     pub fn label(self) -> &'static str {
         match self {
-            Action::Enable => "Enable",
-            Action::Disable => "Disable",
-            Action::Start => "Start",
-            Action::Stop => "Stop",
-            Action::Mask => "Mask",
-            Action::Unmask => "Unmask",
+            Action::Enable => i18n::t("tui_action_enable"),
+            Action::Disable => i18n::t("tui_action_disable"),
+            Action::Start => i18n::t("tui_action_start"),
+            Action::Stop => i18n::t("tui_action_stop"),
+            Action::Mask => i18n::t("tui_action_mask"),
+            Action::Unmask => i18n::t("tui_action_unmask"),
+        }
+    }
+
+    /// i18n key of the "are you sure?" question for this action.
+    pub fn prompt_key(self) -> &'static str {
+        match self {
+            Action::Enable => "tui_prompt_enable",
+            Action::Disable => "tui_prompt_disable",
+            Action::Start => "tui_prompt_start",
+            Action::Stop => "tui_prompt_stop",
+            Action::Mask => "tui_prompt_mask",
+            Action::Unmask => "tui_prompt_unmask",
         }
     }
 
@@ -80,7 +94,10 @@ pub fn disable_all(units: &[String], password: &str) -> Result<String, String> {
     }
 
     if failures.is_empty() {
-        Ok(format!("Disabled {disabled} service(s)."))
+        Ok(i18n::fill(
+            i18n::t("tui_disabled_count"),
+            &[&disabled.to_string()],
+        ))
     } else {
         Err(failures.join("\n"))
     }

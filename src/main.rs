@@ -5,6 +5,7 @@ mod app;
 mod autostart;
 mod backups;
 mod filters;
+mod i18n;
 mod privilege;
 mod profiles;
 mod service_db;
@@ -32,6 +33,9 @@ fn spawn_loader(sender: &Sender<SystemData>) {
 }
 
 fn main() -> io::Result<()> {
+    // Pick the saved language (or the system locale) before drawing anything.
+    i18n::init();
+
     // `ratatui::run` switches the terminal into raw mode and the alternate
     // screen, and restores it afterwards even if the closure panics.
     ratatui::run(|terminal| {

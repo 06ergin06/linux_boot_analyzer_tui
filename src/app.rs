@@ -8,6 +8,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use crate::autostart::{self, AutostartEntry};
 use crate::backups::{self, Backup};
 use crate::filters::{SortBy, StatusFilter, TipFilter};
+use crate::i18n;
 use crate::privilege::{self, Action};
 use crate::system::{self, Service, SystemData, parse_duration_seconds};
 use crate::{profiles, service_db};
@@ -28,10 +29,10 @@ impl Tab {
     /// Label shown in the tab bar.
     pub fn title(self) -> &'static str {
         match self {
-            Tab::Analysis => "Analysis",
-            Tab::Services => "Services",
-            Tab::Autostart => "Autostart",
-            Tab::Profiles => "Profiles",
+            Tab::Analysis => i18n::t("tab_analysis"),
+            Tab::Services => i18n::t("tab_services"),
+            Tab::Autostart => i18n::t("tab_autostart"),
+            Tab::Profiles => i18n::t("tab_profiles"),
         }
     }
 
@@ -226,7 +227,7 @@ impl App {
             Ok(CommandOutcome::Message(Ok(output))) => {
                 self.running = false;
                 self.message = Some(if output.is_empty() {
-                    "Done.".to_string()
+                    i18n::t("tui_done").to_string()
                 } else {
                     output
                 });
@@ -333,10 +334,11 @@ impl App {
                     return None;
                 }
                 let suggestion = service_db::lookup(&entry.name).map_or_else(String::new, |db| {
-                    if db.suggestion.is_empty() {
-                        db.desc.clone()
+                    let suggestion = db.suggestion_text();
+                    if suggestion.is_empty() {
+                        db.description().to_string()
                     } else {
-                        db.suggestion.clone()
+                        suggestion.to_string()
                     }
                 });
                 Some(OptimizableService {
@@ -356,25 +358,25 @@ impl App {
     pub fn analysis_lines(&self) -> Vec<String> {
         let Some(data) = &self.data else {
             return vec![if self.loading {
-                "Loading...".to_string()
+                i18n::t("tui_loading").to_string()
             } else {
-                "No data available.".to_string()
+                i18n::t("tui_no_data").to_string()
             }];
         };
 
         let mut lines = vec![
-            "System".to_string(),
-            format!("  OS:      {}", data.info.os),
-            format!("  Kernel:  {}", data.info.kernel),
-            format!("  Memory:  {}", data.info.ram),
-            format!("  Uptime:  {}", data.info.uptime),
+            i18n::t("tui_system").to_string(),
+            labelled(i18n::t("sys_os"), &data.info.os),
+            labelled(i18n::t("sys_kernel"), &data.info.kernel),
+            labelled(i18n::t("sys_ram"), &data.info.ram),
+            labelled(i18n::t("sys_uptime"), &data.info.uptime),
             String::new(),
-            "Boot time".to_string(),
+            i18n::t("boot_suresi").to_string(),
         ];
 
         match &data.boot {
             Ok(boot) => {
-                lines.push(format!("  Total: {}", boot.total));
+                lines.push(format!("  {}: {}", i18n::t("toplam_boot"), boot.total));
                 lines.push(format!("  {}", boot.detail));
                 for stage in system::parse_breakdown(&boot.detail) {
                     lines.push(format!("    {}: {}", stage.label, stage.time));
@@ -384,28 +386,29 @@ impl App {
         }
 
         lines.push(String::new());
-        lines.push("Optimization".to_string());
+        lines.push(i18n::t("startup_optimizasyonu").to_string());
         let optimizable = self.optimizable_services();
         if optimizable.is_empty() {
-            lines.push(
-                "  Nothing to optimize: no enabled service from the safe-to-disable list is slow."
-                    .to_string(),
-            );
+            lines.push(format!("  {}", i18n::t("no_optimizable_services")));
         } else {
             let total: f64 = optimizable.iter().map(|item| item.seconds).sum();
-            lines.push(format!("  Potential savings: ~{total:.2} s"));
-            lines.push("  Suggested services (safe to disable):".to_string());
+            lines.push(format!(
+                "  {}: ~{total:.2} {}",
+                i18n::t("tui_potential_savings"),
+                i18n::t("tui_second")
+            ));
+            lines.push(format!("  {}", i18n::t("tui_suggested_services")));
             for item in &optimizable {
                 lines.push(format!("    {:<42} {:>9}", item.name, item.time));
                 if !item.suggestion.is_empty() {
                     lines.push(format!("      {}", item.suggestion));
                 }
             }
-            lines.push("  Press 'o' to disable all suggested services.".to_string());
+            lines.push(format!("  {}", i18n::t("tui_optimize_hint")));
         }
 
         lines.push(String::new());
-        lines.push("Slowest units".to_string());
+        lines.push(i18n::t("tui_slowest_services").to_string());
         match &data.blame {
             Ok(entries) => {
                 for entry in entries.iter().take(20) {
@@ -421,20 +424,26 @@ impl App {
     /// The question shown in the confirmation dialog.
     pub fn confirmation_prompt(&self) -> String {
         match &self.pending {
-            Some(Pending::Action(action, unit)) => format!("{} {unit}?", action.label()),
-            Some(Pending::Bulk(units)) => format!("Disable {} suggested service(s)?", units.len()),
+            Some(Pending::Action(action, unit)) => {
+                i18n::fill(i18n::t(action.prompt_key()), &[unit])
+            }
+            Some(Pending::Bulk(units)) => {
+                i18n::fill(i18n::t("tui_prompt_bulk"), &[&units.len().to_string()])
+            }
             Some(Pending::RemoveAutostart { name, .. }) => {
-                format!("Remove autostart entry \"{name}\"?")
+                i18n::fill(i18n::t("tui_remove_autostart"), &[name])
             }
             Some(Pending::ApplyProfile(plan)) => {
-                format!("Apply this profile? ({})", plan.summary())
+                i18n::fill(i18n::t("tui_apply_profile_prompt"), &[&plan.summary()])
             }
             Some(Pending::RestoreBackup(plan)) => {
-                format!("Restore this backup? ({})", plan.summary())
+                i18n::fill(i18n::t("tui_restore_backup_prompt"), &[&plan.summary()])
             }
-            Some(Pending::RemoveBackup { name, .. }) => format!("Delete backup \"{name}\"?"),
+            Some(Pending::RemoveBackup { name, .. }) => {
+                i18n::fill(i18n::t("tui_delete_backup_prompt"), &[name])
+            }
             Some(Pending::AddAutostart { .. }) | Some(Pending::CreateBackup(..)) | None => {
-                "Confirm?".to_string()
+                i18n::t("tui_prompt_confirm").to_string()
             }
         }
     }
@@ -531,12 +540,16 @@ impl App {
 
     /// Plain-text report of the current analysis, for exporting to a file.
     pub fn report(&self) -> String {
-        let mut report = String::from("Linux Boot Analysis Report\n==========================\n\n");
+        let mut report = format!(
+            "{}\n{}\n\n",
+            i18n::t("tui_report_title"),
+            "=".repeat(i18n::t("tui_report_title").chars().count())
+        );
         for line in self.analysis_lines() {
             report.push_str(&line);
             report.push('\n');
         }
-        report.push_str("\nGenerated by linux_boot_analyzer_tui\n");
+        report.push_str(&format!("\n{}\n", i18n::t("tui_report_footer")));
         report
     }
 
@@ -548,8 +561,8 @@ impl App {
 
         let path = report_path();
         self.message = Some(match std::fs::write(&path, self.report()) {
-            Ok(()) => format!("Report written to {path}"),
-            Err(err) => format!("Could not write {path}: {err}"),
+            Ok(()) => i18n::fill(i18n::t("tui_report_written"), &[&path]),
+            Err(err) => i18n::fill(i18n::t("tui_report_failed"), &[&path, &err.to_string()]),
         });
     }
 
@@ -630,6 +643,7 @@ impl App {
             KeyCode::Char('o') => self.begin_quick_optimize(),
             KeyCode::Char('w') => self.export_report(),
             KeyCode::Char('?') => self.open_help(),
+            KeyCode::Char('L') => self.toggle_language(),
             KeyCode::Char('b') => self.begin_create_backup(),
             KeyCode::Char('v') => self.toggle_profiles_view(),
             KeyCode::Char(' ') => self.toggle_autostart(),
@@ -685,7 +699,7 @@ impl App {
         thread::spawn(move || {
             let text = system::journal(&unit, 200, password.as_deref());
             let _ = sender.send(CommandOutcome::Info {
-                title: format!("Log: {unit}"),
+                title: i18n::fill(i18n::t("tui_title_log"), &[&unit]),
                 lines: text.lines().map(str::to_string).collect(),
             });
         });
@@ -705,11 +719,12 @@ impl App {
         self.message = None;
         thread::spawn(move || {
             let text = system::dependencies(&unit, reverse).unwrap_or_else(|err| err);
-            let title = if reverse {
-                format!("Reverse dependencies: {unit}")
+            let key = if reverse {
+                "tui_title_reverse_dependencies"
             } else {
-                format!("Dependencies: {unit}")
+                "tui_title_dependencies"
             };
+            let title = i18n::fill(i18n::t(key), &[&unit]);
             let _ = sender.send(CommandOutcome::Info {
                 title,
                 lines: text.lines().map(str::to_string).collect(),
@@ -789,7 +804,7 @@ impl App {
             .map(|item| item.name.clone())
             .collect();
         if units.is_empty() {
-            self.message = Some("Nothing to optimize.".to_string());
+            self.message = Some(i18n::t("tui_nothing_to_optimize").to_string());
             return;
         }
         self.pending = Some(Pending::Bulk(units));
@@ -826,19 +841,18 @@ impl App {
                 Pending::Action(action, unit) => privilege::systemctl(action, &unit, &password),
                 Pending::Bulk(units) => privilege::disable_all(&units, &password),
                 Pending::RemoveAutostart { path, .. } => {
-                    autostart::remove(&path).map(|()| "Autostart entry removed.".to_string())
+                    autostart::remove(&path).map(|()| i18n::t("tui_autostart_removed").to_string())
                 }
                 Pending::AddAutostart { name, command } => autostart::add(&name, &command)
-                    .map(|path| format!("Created {}", path.display())),
+                    .map(|path| i18n::fill(i18n::t("tui_created"), &[&path.display().to_string()])),
                 Pending::ApplyProfile(plan) | Pending::RestoreBackup(plan) => {
                     run_plan(&plan, &password)
                 }
                 Pending::RemoveBackup { path, .. } => {
-                    backups::remove(&path).map(|()| "Backup deleted.".to_string())
+                    backups::remove(&path).map(|()| i18n::t("tui_backup_deleted").to_string())
                 }
-                Pending::CreateBackup(states) => {
-                    backups::create(states).map(|backup| format!("Saved {}", backup.name))
-                }
+                Pending::CreateBackup(states) => backups::create(states)
+                    .map(|backup| i18n::fill(i18n::t("tui_saved_backup"), &[&backup.name])),
             };
             let _ = sender.send(CommandOutcome::Message(result));
         });
@@ -930,11 +944,11 @@ impl App {
         self.overlay = Overlay::None;
 
         if name.trim().is_empty() {
-            self.message = Some("A name is required.".to_string());
+            self.message = Some(i18n::t("tui_name_required").to_string());
             return;
         }
         if command.trim().is_empty() {
-            self.message = Some("A command is required.".to_string());
+            self.message = Some(i18n::t("tui_command_required").to_string());
             return;
         }
 
@@ -945,7 +959,7 @@ impl App {
     fn finish_local(&mut self, result: Result<(), String>) {
         match result {
             Ok(()) => {
-                self.message = Some("Autostart entry updated.".to_string());
+                self.message = Some(i18n::t("tui_autostart_updated").to_string());
                 self.reload_requested = true;
             }
             Err(error) => self.message = Some(error),
@@ -1021,7 +1035,7 @@ impl App {
         let (enable, disable) = profiles::selections(profile_id);
         let plan = self.build_plan(&enable, &disable);
         if plan.is_empty() {
-            self.message = Some("The profile already matches the system.".to_string());
+            self.message = Some(i18n::t("tui_profile_matches").to_string());
             return;
         }
 
@@ -1054,7 +1068,7 @@ impl App {
 
         let plan = self.build_plan(&enable, &disable);
         if plan.is_empty() {
-            self.message = Some("The system already matches this backup.".to_string());
+            self.message = Some(i18n::t("tui_backup_matches").to_string());
             return;
         }
 
@@ -1079,43 +1093,48 @@ impl App {
 
     /// Show the key bindings in the scrollable info pane.
     fn open_help(&mut self) {
-        let lines = [
-            "Navigation",
-            "  q / Esc          quit",
-            "  Left / Right     switch tab",
-            "  Up / Down        move in a list, scroll a page",
-            "  PageUp/PageDown  scroll a page quickly",
+        // Empty entries are the blank separator lines.
+        let keys = [
+            "tui_help_navigation",
+            "tui_help_quit",
+            "tui_help_tab",
+            "tui_help_move",
+            "tui_help_page",
+            "tui_help_language",
             "",
-            "Services",
-            "  /                search name and description",
-            "  f / t / s        cycle status / tip / sort filters",
-            "  Enter or a       action menu (enable, disable, start, ...)",
-            "  l                journal log for the selected unit",
-            "  d / D            dependencies / reverse dependencies",
+            "tui_help_services",
+            "tui_help_search",
+            "tui_help_filters",
+            "tui_help_actions",
+            "tui_help_log",
+            "tui_help_deps",
             "",
-            "Analysis",
-            "  o                disable every suggested service",
-            "  w                write a text report",
+            "tui_help_analysis",
+            "tui_help_optimize",
+            "tui_help_report",
             "",
-            "Autostart",
-            "  space            toggle enabled",
-            "  [ / ]            decrease / increase delay",
-            "  n / x            add a new entry / remove selected",
+            "tui_help_autostart",
+            "tui_help_toggle",
+            "tui_help_delay",
+            "tui_help_add_remove",
             "",
-            "Profiles",
-            "  v                switch between profiles and restore points",
-            "  Enter or a       apply the selected profile",
-            "  b                create a restore point",
-            "  d / x            restore / delete the selected backup",
+            "tui_help_profiles",
+            "tui_help_view",
+            "tui_help_apply",
+            "tui_help_backup",
+            "tui_help_restore",
             "",
-            "  r                reload system data",
-        ]
-        .iter()
-        .map(|line| line.to_string())
-        .collect();
+            "tui_help_reload",
+        ];
+        let mut lines: Vec<String> = keys.iter().map(|key| i18n::t(key).to_string()).collect();
+        lines.push(String::new());
+        lines.push(i18n::fill(
+            i18n::t("tui_language_set"),
+            &[i18n::lang().native_name()],
+        ));
 
         self.info = Some(InfoPane {
-            title: "Help".to_string(),
+            title: i18n::t("tui_help_title").to_string(),
             lines,
             scroll: 0,
         });
@@ -1123,6 +1142,15 @@ impl App {
 
     fn reset_selection(&mut self) {
         self.selected = 0;
+    }
+
+    /// L: switch between English and Turkish, and remember the choice.
+    fn toggle_language(&mut self) {
+        let lang = i18n::toggle();
+        self.message = Some(i18n::fill(
+            i18n::t("tui_language_set"),
+            &[lang.native_name()],
+        ));
     }
 
     fn select_next_tab(&mut self) {
@@ -1212,6 +1240,12 @@ impl Default for App {
     }
 }
 
+/// A `label value` row of the analysis page, with the label padded so the
+/// values line up in both languages.
+fn labelled(label: &str, value: &str) -> String {
+    format!("  {label:<10}{value}")
+}
+
 /// A unique report filename based on the current Unix time.
 fn report_path() -> String {
     let seconds = std::time::SystemTime::now()
@@ -1237,7 +1271,7 @@ fn run_plan(plan: &profiles::Plan, password: &str) -> Result<String, String> {
         privilege::systemctl_many(verb, &names, password)?;
     }
 
-    Ok("Done.".to_string())
+    Ok(i18n::t("tui_done").to_string())
 }
 
 #[cfg(test)]

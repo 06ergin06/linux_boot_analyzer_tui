@@ -1,5 +1,6 @@
 //! Filters and sort order for the Services tab.
 
+use crate::i18n;
 use crate::service_db::{self, Tip};
 use crate::system::Service;
 
@@ -24,11 +25,11 @@ impl StatusFilter {
 
     pub fn label(self) -> &'static str {
         match self {
-            StatusFilter::All => "all",
-            StatusFilter::Active => "active",
-            StatusFilter::Inactive => "inactive",
-            StatusFilter::Disabled => "disabled",
-            StatusFilter::Masked => "masked",
+            StatusFilter::All => i18n::t("filter_all"),
+            StatusFilter::Active => i18n::t("filter_active"),
+            StatusFilter::Inactive => i18n::t("filter_inactive"),
+            StatusFilter::Disabled => i18n::t("filter_disabled"),
+            StatusFilter::Masked => i18n::t("filter_masked"),
         }
     }
 
@@ -70,10 +71,10 @@ impl TipFilter {
 
     pub fn label(self) -> &'static str {
         match self {
-            TipFilter::All => "all",
-            TipFilter::Suggestion => "suggestion",
-            TipFilter::Critical => "critical",
-            TipFilter::Required => "required",
+            TipFilter::All => i18n::t("tip_all"),
+            TipFilter::Suggestion => i18n::t("tip_suggestion"),
+            TipFilter::Critical => i18n::t("tip_critical"),
+            TipFilter::Required => i18n::t("tip_required"),
         }
     }
 
@@ -112,8 +113,8 @@ pub enum SortBy {
 impl SortBy {
     pub fn label(self) -> &'static str {
         match self {
-            SortBy::Name => "name",
-            SortBy::BootTime => "boot time",
+            SortBy::Name => i18n::t("tui_sort_name"),
+            SortBy::BootTime => i18n::t("tui_sort_time"),
         }
     }
 

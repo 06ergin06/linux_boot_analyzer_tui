@@ -127,14 +127,14 @@ fn add_form_overlay_shows_both_fields() {
 fn profiles_tab_lists_profiles_and_restore_points() {
     let app = loaded_app(Tab::Profiles);
     let text = render_to_string(&app, 110, 24);
-    assert!(text.contains("minimum"));
+    assert!(text.contains("Minimum Services"));
     assert!(text.contains("Restore Points"));
 }
 
 #[test]
 fn action_bar_shows_the_keys_for_the_active_tab() {
     let analysis = render_to_string(&loaded_app(Tab::Analysis), 120, 24);
-    assert!(analysis.contains("o: disable suggested services"));
+    assert!(analysis.contains("o: disable recommended services"));
     assert!(analysis.contains("w: write report"));
 
     let services = render_to_string(&loaded_app(Tab::Services), 120, 24);
@@ -146,6 +146,12 @@ fn action_bar_shows_the_keys_for_the_active_tab() {
 
     let profiles = render_to_string(&loaded_app(Tab::Profiles), 120, 24);
     assert!(profiles.contains("b: create restore point"));
+}
+
+#[test]
+fn the_status_line_advertises_the_language_key() {
+    let text = render_to_string(&loaded_app(Tab::Analysis), 120, 24);
+    assert!(text.contains("L: language"));
 }
 
 #[test]
