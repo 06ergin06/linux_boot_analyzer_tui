@@ -194,16 +194,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Başlangıç Optimizasyonu",
     ),
     (
-        "savings_potansiyeli",
-        "Speed-up Potential",
-        "Hızlandırma Potansiyeli",
-    ),
-    (
-        "tum_onerilenleri_disable",
-        "Disable All Recommended",
-        "Tüm Önerilenleri Kapat",
-    ),
-    (
         "no_optimizable_services",
         "No recommended service to disable; the system is in an optimal state!",
         "Kapatılması önerilen bir hizmet yok; sistem en iyi durumda!",
@@ -252,11 +242,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ("tui_state_disabled", "disabled", "devre dışı"),
     ("tui_state_failed", "failed", "başarısız"),
     (
-        "description_none",
-        "No description available.",
-        "Açıklama mevcut değil.",
-    ),
-    (
         "tui_no_kb_entry",
         "No knowledge-base entry for this service.",
         "Bu hizmet için bilgi tabanı kaydı bulunamadı.",
@@ -265,11 +250,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "tui_no_service_selected",
         "No service selected.",
         "Servis seçilmedi.",
-    ),
-    (
-        "tui_select_service_hint",
-        "Select a service from the list to view details.",
-        "Detayları görmek için listeden bir hizmet seçin.",
     ),
     // --- Actions ----------------------------------------------------------
     ("tui_action_enable", "Enable", "Etkinleştir"),
@@ -311,7 +291,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     ("tui_prompt_confirm", "Confirm?", "Onayla?"),
     // --- Autostart page ---------------------------------------------------
-    ("app_name", "Application Name", "Uygulama Adı"),
     ("state", "State", "Durum"),
     ("delay", "Delay", "Gecikme"),
     ("komut", "Command", "Komut"),
@@ -344,18 +323,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ("tui_disable_count", "Disable", "Kapat"),
     ("service_count", "services", "hizmet"),
     (
-        "backup_create",
-        "Create Restore Point",
-        "Geri Yükleme Noktası Oluştur",
-    ),
-    ("restore_load", "Restore", "Geri Yükle"),
-    ("secileni_delete", "Delete", "Sil"),
-    (
-        "no_backups_found",
-        "No restore points found.",
-        "Oluşturulmuş geri yükleme noktası yok.",
-    ),
-    (
         "tui_create_backup_hint",
         "No restore point yet. Press 'b' to create one.",
         "Henüz geri yükleme noktası yok. Oluşturmak için 'b' tuşuna basın.",
@@ -364,28 +331,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ("tui_plan_start", "start", "başlat"),
     ("tui_plan_disable", "disable", "kapat"),
     ("tui_plan_stop", "stop", "durdur"),
-    (
-        "backup_don_soru",
-        "Restore this backup?",
-        "Bu yedek noktasına dönülsün mü?",
-    ),
-    (
-        "backup_delete_soru",
-        "Delete this restore point?",
-        "Bu yedek noktası silinsin mi?",
-    ),
     // --- Overlays ---------------------------------------------------------
     ("tui_confirm", "Confirm", "Onayla"),
-    (
-        "auth_gerekiyor",
-        "Administrator Privileges Required",
-        "Yönetici Yetkisi Gerekiyor",
-    ),
-    (
-        "password_placeholder",
-        "Administrator password",
-        "Yönetici şifresi",
-    ),
     (
         "tui_confirm_keys",
         "y / Enter to confirm, n / Esc to cancel",
@@ -407,12 +354,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Enter the delay as a whole number of seconds.",
         "Gecikmeyi saniye cinsinden tam sayı olarak girin.",
     ),
-    (
-        "tui_press_escape",
-        "Press Esc to close.",
-        "Kapatmak için Esc.",
-    ),
-    ("tui_language", "Language", "Dil"),
     // --- Status messages --------------------------------------------------
     ("tui_loading", "Loading...", "Yükleniyor..."),
     ("tui_no_data", "No data available.", "Veri yok."),
@@ -423,11 +364,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Bir komut zaten çalışıyor.",
     ),
     ("tui_done", "Done.", "Tamamlandı."),
-    (
-        "tui_operation_success",
-        "Operation successful.",
-        "İşlem başarılı.",
-    ),
     (
         "tui_nothing_to_optimize",
         "Nothing to optimize.",
@@ -668,7 +604,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "  r                sistem verisini yenile",
     ),
     ("tui_name", "Name", "Ad"),
-    ("tui_application", "Application", "Uygulama"),
     ("tui_backup", "Backup", "Yedek"),
     ("tui_services", "Services", "Hizmetler"),
     ("tui_profile_label", "Profile: {}", "Profil: {}"),
@@ -683,7 +618,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "No entry selected.",
         "Kayıt seçilmedi.",
     ),
-    ("tui_active", "(active)", "(aktif)"),
     (
         "tui_potential_savings",
         "Potential savings",
