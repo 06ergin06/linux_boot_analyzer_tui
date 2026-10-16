@@ -1,4 +1,8 @@
+use std::sync::mpsc::{Receiver, TryRecvError};
+
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+
+use crate::system::SystemData;
 
 /// The top-level screens, mirroring the pages of the original GTK application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,10 +20,10 @@ impl Tab {
     /// Label shown in the tab bar.
     pub fn title(self) -> &'static str {
         match self {
-            Tab::Analysis => "Analiz",
-            Tab::Services => "Servisler",
-            Tab::Autostart => "Başlangıç",
-            Tab::Profiles => "Profiller",
+            Tab::Analysis => "Analysis",
+            Tab::Services => "Services",
+            Tab::Autostart => "Autostart",
+            Tab::Profiles => "Profiles",
         }
     }
 
@@ -33,6 +37,12 @@ impl Tab {
 pub struct App {
     pub tab: Tab,
     pub should_quit: bool,
+    /// System snapshot, filled in once the background loader finishes.
+    pub data: Option<SystemData>,
+    /// Selected row in the services table.
+    pub selected: usize,
+    /// Whether the initial snapshot is still loading.
+    pub loading: bool,
 }
 
 impl App {
@@ -40,7 +50,30 @@ impl App {
         Self {
             tab: Tab::Analysis,
             should_quit: false,
+            data: None,
+            selected: 0,
+            loading: true,
         }
+    }
+
+    /// Take the loaded snapshot from the background loader, if it is ready.
+    pub fn poll_data(&mut self, receiver: &Receiver<SystemData>) {
+        match receiver.try_recv() {
+            Ok(data) => {
+                self.data = Some(data);
+                self.loading = false;
+            }
+            Err(TryRecvError::Disconnected) => self.loading = false,
+            Err(TryRecvError::Empty) => {}
+        }
+    }
+
+    /// Number of rows in the services table (0 until data is loaded).
+    pub fn service_count(&self) -> usize {
+        self.data
+            .as_ref()
+            .and_then(|data| data.services.as_ref().ok())
+            .map_or(0, |services| services.len())
     }
 
     /// Update state in response to a key press.
@@ -52,21 +85,34 @@ impl App {
 
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-            KeyCode::Right | KeyCode::Tab => self.select_next(),
-            KeyCode::Left | KeyCode::BackTab => self.select_previous(),
+            KeyCode::Right | KeyCode::Tab => self.select_next_tab(),
+            KeyCode::Left | KeyCode::BackTab => self.select_previous_tab(),
+            KeyCode::Down | KeyCode::Char('j') => self.select_next_row(),
+            KeyCode::Up | KeyCode::Char('k') => self.select_previous_row(),
             _ => {}
         }
     }
 
-    fn select_next(&mut self) {
+    fn select_next_tab(&mut self) {
         let next = (self.tab.index() + 1) % Tab::ALL.len();
         self.tab = Tab::ALL[next];
     }
 
-    fn select_previous(&mut self) {
+    fn select_previous_tab(&mut self) {
         let count = Tab::ALL.len();
         let previous = (self.tab.index() + count - 1) % count;
         self.tab = Tab::ALL[previous];
+    }
+
+    fn select_next_row(&mut self) {
+        let count = self.service_count();
+        if count > 0 {
+            self.selected = (self.selected + 1).min(count - 1);
+        }
+    }
+
+    fn select_previous_row(&mut self) {
+        self.selected = self.selected.saturating_sub(1);
     }
 }
 
@@ -90,6 +136,7 @@ mod tests {
         let app = App::new();
         assert_eq!(app.tab, Tab::Analysis);
         assert!(!app.should_quit);
+        assert!(app.loading);
     }
 
     #[test]
@@ -115,5 +162,12 @@ mod tests {
             app.handle_key(press(code));
             assert!(app.should_quit);
         }
+    }
+
+    #[test]
+    fn row_selection_stays_put_without_data() {
+        let mut app = App::new();
+        app.handle_key(press(KeyCode::Down));
+        assert_eq!(app.selected, 0);
     }
 }
