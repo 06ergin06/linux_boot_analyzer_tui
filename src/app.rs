@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use crate::filters::{SortBy, StatusFilter, TipFilter};
 use crate::privilege::{self, Action};
-use crate::system::{Service, SystemData, parse_duration_seconds};
+use crate::system::{self, Service, SystemData, parse_duration_seconds};
 
 /// The top-level screens, mirroring the pages of the original GTK application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +49,22 @@ pub enum Overlay {
     Password,
 }
 
+/// A scrollable text pane (journal log or dependency tree).
+pub struct InfoPane {
+    pub title: String,
+    pub lines: Vec<String>,
+    /// Index of the first visible line.
+    pub scroll: u16,
+}
+
+/// Result of a background task started by the UI.
+enum CommandOutcome {
+    /// Output of a privileged `systemctl` action.
+    Message(Result<String, String>),
+    /// Text to show in the [`InfoPane`].
+    Info { title: String, lines: Vec<String> },
+}
+
 /// All application state, kept free of rendering and I/O.
 pub struct App {
     pub tab: Tab,
@@ -78,12 +94,14 @@ pub struct App {
     pub message: Option<String>,
     /// Whether a privileged command is currently running.
     pub running: bool,
+    /// Journal/dependency text pane, when open.
+    pub info: Option<InfoPane>,
     /// Password cached after the first privileged command.
     password: Option<String>,
     /// Action and unit waiting for a password.
     pending: Option<(Action, String)>,
-    command_tx: Sender<Result<String, String>>,
-    command_rx: Receiver<Result<String, String>>,
+    command_tx: Sender<CommandOutcome>,
+    command_rx: Receiver<CommandOutcome>,
 }
 
 impl App {
@@ -106,6 +124,7 @@ impl App {
             password_input: String::new(),
             message: None,
             running: false,
+            info: None,
             password: None,
             pending: None,
             command_tx,
@@ -125,10 +144,10 @@ impl App {
         }
     }
 
-    /// Take the result of a background privileged command, if it finished.
+    /// Take the result of a background task, if one finished.
     pub fn poll_command(&mut self) {
         match self.command_rx.try_recv() {
-            Ok(Ok(output)) => {
+            Ok(CommandOutcome::Message(Ok(output))) => {
                 self.running = false;
                 self.message = Some(if output.is_empty() {
                     "Done.".to_string()
@@ -138,12 +157,20 @@ impl App {
                 // The unit states changed, so refresh the snapshot.
                 self.reload_requested = true;
             }
-            Ok(Err(error)) => {
+            Ok(CommandOutcome::Message(Err(error))) => {
                 self.running = false;
                 if privilege::is_auth_failure(&error) {
                     self.password = None;
                 }
                 self.message = Some(error);
+            }
+            Ok(CommandOutcome::Info { title, lines }) => {
+                self.running = false;
+                self.info = Some(InfoPane {
+                    title,
+                    lines,
+                    scroll: 0,
+                });
             }
             Err(TryRecvError::Empty | TryRecvError::Disconnected) => {}
         }
@@ -222,6 +249,11 @@ impl App {
             return;
         }
 
+        // The info pane is modal: it captures scrolling keys.
+        if self.info.is_some() {
+            return self.handle_info_key(key);
+        }
+
         match self.overlay {
             Overlay::Password => return self.handle_password_key(key),
             Overlay::Menu => return self.handle_menu_key(key),
@@ -272,8 +304,83 @@ impl App {
                 self.reset_selection();
             }
             KeyCode::Char('r') => self.reload_requested = true,
+            KeyCode::Char('l') => self.show_journal(),
+            KeyCode::Char('d') => self.show_dependencies(false),
+            KeyCode::Char('D') => self.show_dependencies(true),
             _ => {}
         }
+    }
+
+    /// Scroll or close the info pane.
+    fn handle_info_key(&mut self, key: KeyEvent) {
+        let Some(info) = self.info.as_mut() else {
+            return;
+        };
+        let max_scroll = info.lines.len().saturating_sub(1) as u16;
+
+        let mut close = false;
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('l') => close = true,
+            KeyCode::Down | KeyCode::Char('j') => info.scroll = (info.scroll + 1).min(max_scroll),
+            KeyCode::Up | KeyCode::Char('k') => info.scroll = info.scroll.saturating_sub(1),
+            KeyCode::PageDown => info.scroll = (info.scroll + 10).min(max_scroll),
+            KeyCode::PageUp => info.scroll = info.scroll.saturating_sub(10),
+            KeyCode::Home | KeyCode::Char('g') => info.scroll = 0,
+            KeyCode::End | KeyCode::Char('G') => info.scroll = max_scroll,
+            _ => {}
+        }
+
+        if close {
+            self.info = None;
+        }
+    }
+
+    /// Load the selected service's journal into the info pane.
+    fn show_journal(&mut self) {
+        if self.tab != Tab::Services {
+            return;
+        }
+        let Some(unit) = self.selected_service().map(|service| service.name.clone()) else {
+            return;
+        };
+
+        let password = self.password.clone();
+        let sender = self.command_tx.clone();
+        self.running = true;
+        self.message = None;
+        thread::spawn(move || {
+            let text = system::journal(&unit, 200, password.as_deref());
+            let _ = sender.send(CommandOutcome::Info {
+                title: format!("Log: {unit}"),
+                lines: text.lines().map(str::to_string).collect(),
+            });
+        });
+    }
+
+    /// Load the selected service's dependencies into the info pane.
+    fn show_dependencies(&mut self, reverse: bool) {
+        if self.tab != Tab::Services {
+            return;
+        }
+        let Some(unit) = self.selected_service().map(|service| service.name.clone()) else {
+            return;
+        };
+
+        let sender = self.command_tx.clone();
+        self.running = true;
+        self.message = None;
+        thread::spawn(move || {
+            let text = system::dependencies(&unit, reverse).unwrap_or_else(|err| err);
+            let title = if reverse {
+                format!("Reverse dependencies: {unit}")
+            } else {
+                format!("Dependencies: {unit}")
+            };
+            let _ = sender.send(CommandOutcome::Info {
+                title,
+                lines: text.lines().map(str::to_string).collect(),
+            });
+        });
     }
 
     fn handle_menu_key(&mut self, key: KeyEvent) {
@@ -355,7 +462,9 @@ impl App {
         self.running = true;
         self.message = None;
         thread::spawn(move || {
-            let _ = sender.send(privilege::systemctl(action, &unit, &password));
+            let _ = sender.send(CommandOutcome::Message(privilege::systemctl(
+                action, &unit, &password,
+            )));
         });
     }
 
@@ -553,5 +662,24 @@ mod tests {
         app.handle_key(press(KeyCode::Char('n')));
         assert_eq!(app.overlay, Overlay::None);
         assert!(app.pending.is_none());
+    }
+
+    #[test]
+    fn info_pane_scrolls_and_closes() {
+        let mut app = app_with_services();
+        app.info = Some(InfoPane {
+            title: "Log".to_string(),
+            lines: (0..30).map(|index| index.to_string()).collect(),
+            scroll: 0,
+        });
+
+        app.handle_key(press(KeyCode::Char('j')));
+        assert_eq!(app.info.as_ref().map(|info| info.scroll), Some(1));
+
+        app.handle_key(press(KeyCode::End));
+        assert_eq!(app.info.as_ref().map(|info| info.scroll), Some(29));
+
+        app.handle_key(press(KeyCode::Esc));
+        assert!(app.info.is_none());
     }
 }

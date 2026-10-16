@@ -24,6 +24,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     render_body(frame, app, body);
     render_footer(frame, app, footer);
     render_overlay(frame, app);
+    render_info(frame, app);
 }
 
 fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
@@ -260,7 +261,7 @@ fn render_placeholder(frame: &mut Frame, tab: Tab, area: Rect, text: &str) {
 }
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
-    const HINTS: &str = "q: quit   Enter/a: actions   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   r: reload";
+    const HINTS: &str = "q: quit   Enter/a: actions   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   l: log   d: deps   r: reload";
 
     // The status line shows the latest command result when there is one.
     let text: &str = match &app.message {
@@ -334,6 +335,32 @@ fn render_password(frame: &mut Frame, app: &App) {
             .wrap(Wrap { trim: true }),
         area,
     );
+}
+
+fn render_info(frame: &mut Frame, app: &App) {
+    let Some(info) = &app.info else {
+        return;
+    };
+
+    let full = frame.area();
+    let area = centered_rect(
+        full.width.saturating_sub(4),
+        full.height.saturating_sub(2),
+        full,
+    );
+    frame.render_widget(Clear, area);
+
+    let text: Vec<Line> = info
+        .lines
+        .iter()
+        .map(|line| Line::from(line.as_str()))
+        .collect();
+    let paragraph = Paragraph::new(text)
+        .block(Block::bordered().title(format!(" {} — Esc: close, j/k: scroll ", info.title)))
+        .scroll((info.scroll, 0))
+        .wrap(Wrap { trim: false });
+
+    frame.render_widget(paragraph, area);
 }
 
 /// A rectangle of the given size, centred inside `area`.
@@ -437,5 +464,19 @@ mod tests {
         let text = render_to_string(&app, 100, 24);
         assert!(text.contains("Enable"));
         assert!(text.contains("Unmask"));
+    }
+
+    #[test]
+    fn info_pane_shows_its_title_and_content() {
+        let mut app = loaded_app(Tab::Services);
+        app.info = Some(crate::app::InfoPane {
+            title: "Log: sshd.service".to_string(),
+            lines: vec!["Oct 16 host systemd[1]: Started sshd.".to_string()],
+            scroll: 0,
+        });
+
+        let text = render_to_string(&app, 100, 24);
+        assert!(text.contains("Log: sshd.service"));
+        assert!(text.contains("Started sshd."));
     }
 }

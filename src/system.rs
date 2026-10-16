@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 
+use crate::privilege;
+
 /// Everything the UI needs, gathered on a background thread.
 pub struct SystemData {
     pub info: SystemInfo,
@@ -235,6 +237,46 @@ fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<
     services
 }
 
+// --- Journal and dependencies ---
+
+/// Whether `journalctl` output effectively contains nothing useful.
+pub fn journal_is_empty(output: &str) -> bool {
+    let trimmed = output.trim();
+    trimmed.is_empty() || trimmed.to_lowercase().contains("-- no entries --")
+}
+
+/// Recent journal entries for a unit.
+///
+/// Reading the journal may require membership in `systemd-journal`, so when the
+/// unprivileged read comes back empty (or fails) and a password is available we
+/// retry through `sudo -S`.
+pub fn journal(unit: &str, lines: usize, password: Option<&str>) -> String {
+    let count = lines.to_string();
+    let args = ["-u", unit, "--no-pager", "-n", count.as_str()];
+
+    let unprivileged = run("journalctl", &args);
+    match unprivileged {
+        Ok(output) if !journal_is_empty(&output) => output,
+        other => match password {
+            Some(password) => privilege::run(
+                &["journalctl", "-u", unit, "--no-pager", "-n", count.as_str()],
+                password,
+            )
+            .unwrap_or_else(|err| err),
+            None => other.unwrap_or_else(|err| err),
+        },
+    }
+}
+
+/// Unit dependencies as rendered by `systemctl list-dependencies`.
+pub fn dependencies(unit: &str, reverse: bool) -> Result<String, String> {
+    let mut args = vec!["list-dependencies", unit, "--no-pager"];
+    if reverse {
+        args.push("--reverse");
+    }
+    run("systemctl", &args)
+}
+
 // --- System information ---
 
 /// Basic host information shown on the analysis page.
@@ -367,6 +409,15 @@ mod tests {
         assert_eq!(services[0].active, "inactive");
         assert_eq!(services[0].enabled, "disabled");
         assert_eq!(services[1].name, "sshd.service");
+    }
+
+    #[test]
+    fn detects_empty_journal_output() {
+        assert!(journal_is_empty(""));
+        assert!(journal_is_empty("  -- No entries --  "));
+        assert!(!journal_is_empty(
+            "Oct 16 host systemd[1]: Started foo.service"
+        ));
     }
 
     #[test]
