@@ -2,9 +2,19 @@
 name = "linux_boot_analyzer_tui"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 
 [dependencies]
 crossterm = "0.29.0"
 ratatui = "0.30.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+
+# A release build is what people actually run, so it is worth the build time:
+# one codegen unit and full LTO for speed, a stripped binary for size.
+# `panic = "abort"` is deliberately absent: `ratatui::run` restores the
+# terminal while the stack unwinds, and aborting would leave it in raw mode.
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
