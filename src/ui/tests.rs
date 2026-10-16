@@ -167,21 +167,37 @@ fn services_title_shows_the_unit_type_and_count() {
 #[test]
 fn action_bar_shows_the_keys_for_the_active_tab() {
     let analysis = render_to_string(&loaded_app(Tab::Analysis), 120, 24);
-    assert!(analysis.contains("o: disable recommended services"));
-    assert!(analysis.contains("w: write report"));
+    assert!(analysis.contains("o: optimize"));
+    assert!(analysis.contains("w: report"));
 
     let services = render_to_string(&loaded_app(Tab::Services), 120, 24);
-    assert!(services.contains("Enter/a: actions"));
-    assert!(services.contains("unit type"));
+    assert!(services.contains("Enter: actions"));
+    assert!(services.contains("v: unit type"));
 
     let autostart = render_to_string(&loaded_app(Tab::Autostart), 120, 24);
     assert!(autostart.contains("space: enable/disable"));
 
     let profiles = render_to_string(&loaded_app(Tab::Profiles), 120, 24);
-    assert!(profiles.contains("b: create restore point"));
+    assert!(profiles.contains("b: restore point"));
 
     let backups = render_to_string(&loaded_app(Tab::Backups), 120, 24);
     assert!(backups.contains("d: restore"));
+}
+
+#[test]
+fn the_action_bar_fits_a_normal_terminal() {
+    // Each tab advertises a single line of keys, so it has to fit a normal
+    // terminal width instead of running off the end of the screen.
+    for tab in [
+        Tab::Analysis,
+        Tab::Services,
+        Tab::Autostart,
+        Tab::Profiles,
+        Tab::Backups,
+    ] {
+        let hints = action_hints(&loaded_app(tab));
+        assert!(hints.chars().count() <= 80, "{tab:?}: {hints}");
+    }
 }
 
 #[test]
