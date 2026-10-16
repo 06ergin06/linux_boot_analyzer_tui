@@ -102,6 +102,26 @@ fn parse_blame(output: &str) -> Vec<BlameEntry> {
         .collect()
 }
 
+/// Parse a `systemd-analyze blame` time such as `"5.678s"`, `"234ms"` or
+/// `"1min 8.634s"` into seconds.
+pub fn parse_duration_seconds(value: &str) -> f64 {
+    let mut seconds = 0.0;
+    for token in value.split_whitespace() {
+        if let Some(ms) = token.strip_suffix("ms") {
+            seconds += ms.parse::<f64>().unwrap_or_default() / 1000.0;
+        } else if let Some(minutes) = token.strip_suffix("min") {
+            seconds += minutes.parse::<f64>().unwrap_or_default() * 60.0;
+        } else if let Some(secs) = token.strip_suffix('s') {
+            seconds += secs.parse::<f64>().unwrap_or_default();
+        } else if let Some(minutes) = token.strip_suffix('m') {
+            seconds += minutes.parse::<f64>().unwrap_or_default() * 60.0;
+        } else if let Some(hours) = token.strip_suffix('h') {
+            seconds += hours.parse::<f64>().unwrap_or_default() * 3600.0;
+        }
+    }
+    seconds
+}
+
 // --- systemctl services ---
 
 /// One systemd service unit.
@@ -309,6 +329,14 @@ mod tests {
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].time, "2.345s");
         assert_eq!(entries[0].name, "NetworkManager-wait-online.service");
+    }
+
+    #[test]
+    fn parses_blame_durations() {
+        assert!((parse_duration_seconds("5.678s") - 5.678).abs() < 1e-9);
+        assert!((parse_duration_seconds("234ms") - 0.234).abs() < 1e-9);
+        assert!((parse_duration_seconds("1min 8.634s") - 68.634).abs() < 1e-6);
+        assert_eq!(parse_duration_seconds(""), 0.0);
     }
 
     #[test]

@@ -116,40 +116,51 @@ fn render_blame(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_services(frame: &mut Frame, app: &App, area: Rect) {
-    let block = Block::bordered().title(" Services ");
     let Some(data) = &app.data else {
-        frame.render_widget(Paragraph::new(status_text(app)).block(block), area);
+        frame.render_widget(
+            Paragraph::new(status_text(app)).block(Block::bordered().title(" Services ")),
+            area,
+        );
         return;
     };
 
-    let services = match &data.services {
-        Ok(services) => services,
-        Err(err) => {
-            frame.render_widget(
-                Paragraph::new(err.as_str())
-                    .block(block)
-                    .wrap(Wrap { trim: true }),
-                area,
-            );
-            return;
-        }
-    };
+    if let Err(err) = &data.services {
+        frame.render_widget(
+            Paragraph::new(err.as_str())
+                .block(Block::bordered().title(" Services "))
+                .wrap(Wrap { trim: true }),
+            area,
+        );
+        return;
+    }
 
-    let header = Row::new(["Service", "Active", "Enabled", "Tip"]).style(Style::new().bold());
-    let rows = services.iter().map(|service| {
+    let visible = app.visible_services();
+    let times = app.blame_times();
+
+    let [filter_area, table_area, detail_area] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Min(0),
+        Constraint::Length(6),
+    ])
+    .areas(area);
+
+    render_filter_bar(frame, app, filter_area);
+
+    let header =
+        Row::new(["Service", "Active", "Enabled", "Time", "Tip"]).style(Style::new().bold());
+    let rows = visible.iter().map(|service| {
         let tip = service_db::lookup(&service.name)
             .map(|entry| entry.tip.label())
             .unwrap_or("-");
+        let time = times.get(service.name.as_str()).copied().unwrap_or("-");
         Row::new([
             service.name.as_str(),
             service.active.as_str(),
             service.enabled.as_str(),
+            time,
             tip,
         ])
     });
-
-    let [table_area, detail_area] =
-        Layout::vertical([Constraint::Min(0), Constraint::Length(6)]).areas(area);
 
     let table = Table::new(
         rows,
@@ -157,18 +168,36 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
             Constraint::Min(30),
             Constraint::Length(10),
             Constraint::Length(10),
+            Constraint::Length(10),
             Constraint::Length(12),
         ],
     )
     .header(header)
-    .block(block)
+    .block(Block::bordered().title(" Services "))
     .row_highlight_style(Style::new().reversed())
     .highlight_symbol("> ");
 
     let mut state = TableState::default().with_selected(app.selected);
     frame.render_stateful_widget(table, table_area, &mut state);
 
-    render_service_detail(frame, services.get(app.selected), detail_area);
+    render_service_detail(frame, visible.get(app.selected).copied(), detail_area);
+}
+
+fn render_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
+    let search = if app.searching || !app.query.is_empty() {
+        format!("/{}", app.query)
+    } else {
+        "/ search".to_string()
+    };
+    let line = format!(
+        "f: status={}   t: tip={}   s: sort={}   {}",
+        app.status_filter.label(),
+        app.tip_filter.label(),
+        app.sort.label(),
+        search,
+    );
+
+    frame.render_widget(Paragraph::new(line).style(Style::new().dim()), area);
 }
 
 fn render_service_detail(frame: &mut Frame, service: Option<&Service>, area: Rect) {
@@ -227,9 +256,10 @@ fn render_placeholder(frame: &mut Frame, tab: Tab, area: Rect, text: &str) {
 }
 
 fn render_footer(frame: &mut Frame, area: Rect) {
-    let footer =
-        Paragraph::new("q/Esc: quit    Left/Right or Tab: switch tab    Up/Down: move in list")
-            .style(Style::new().dim());
+    let footer = Paragraph::new(
+        "q: quit   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   r: reload",
+    )
+    .style(Style::new().dim());
 
     frame.render_widget(footer, area);
 }

@@ -2,31 +2,38 @@
 //! `pardus-boot-analyzer` application.
 
 mod app;
+mod filters;
 mod profiles;
 mod service_db;
 mod system;
 mod ui;
 
 use std::io;
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Sender};
 use std::thread;
 use std::time::Duration;
 
 use app::App;
 use crossterm::event::{self, Event};
+use system::SystemData;
 
 /// How long to wait for a key before checking the loader channel again.
 const EVENT_POLL: Duration = Duration::from_millis(200);
+
+/// Gather a system snapshot on a background thread so the UI stays responsive.
+fn spawn_loader(sender: &Sender<SystemData>) {
+    let sender = sender.clone();
+    thread::spawn(move || {
+        let _ = sender.send(system::load());
+    });
+}
 
 fn main() -> io::Result<()> {
     // `ratatui::run` switches the terminal into raw mode and the alternate
     // screen, and restores it afterwards even if the closure panics.
     ratatui::run(|terminal| {
-        // Gather system data in the background so the UI stays responsive.
         let (sender, receiver) = mpsc::channel();
-        thread::spawn(move || {
-            let _ = sender.send(system::load());
-        });
+        spawn_loader(&sender);
 
         let mut app = App::new();
 
@@ -38,6 +45,11 @@ fn main() -> io::Result<()> {
                 && let Event::Key(key) = event::read()?
             {
                 app.handle_key(key);
+            }
+
+            if app.reload_requested {
+                app.reload_requested = false;
+                spawn_loader(&sender);
             }
         }
 
