@@ -455,7 +455,11 @@ impl App {
                 lines.push(format!("  {}: {}", i18n::t("toplam_boot"), boot.total));
                 lines.push(format!("  {}", boot.detail));
                 for stage in system::parse_breakdown(&boot.detail) {
-                    lines.push(format!("    {}: {}", stage.label, stage.time));
+                    // systemd prints these names in English. The table has a
+                    // translation for each of them (comp_firmware, comp_kernel,
+                    // ...) and returns an unknown label unchanged.
+                    let key = format!("comp_{}", stage.label.to_lowercase());
+                    lines.push(format!("    {}: {}", i18n::t(&key), stage.time));
                 }
             }
             Err(err) => lines.push(format!("  {err}")),

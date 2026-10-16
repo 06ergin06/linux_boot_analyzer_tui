@@ -1,5 +1,5 @@
 use super::*;
-use crate::system::{BlameEntry, Service, SystemInfo};
+use crate::system::{BlameEntry, BootSummary, Service, SystemInfo};
 use crossterm::event::KeyModifiers;
 
 fn press(code: KeyCode) -> KeyEvent {
@@ -442,6 +442,27 @@ fn analysis_lines_summarise_the_snapshot() {
     assert!(text.contains("System"));
     assert!(text.contains("Slowest Services"));
     assert!(text.contains("Optimization"));
+}
+
+#[test]
+fn boot_stages_use_the_translated_labels() {
+    let mut app = app_with_services();
+    if let Some(data) = app.data.as_mut() {
+        data.boot = Ok(BootSummary {
+            total: "18.9s".to_string(),
+            detail: "Startup finished in 3.1s (firmware) + 2.2s (loader) \
+                     + 1.1s (kernel) + 0.5s (initrd) + 12.0s (userspace)"
+                .to_string(),
+        });
+    }
+
+    let text = app.analysis_lines().join("\n");
+    // The breakdown is labelled from the comp_* entries, not with the English
+    // words systemd prints.
+    assert!(text.contains("Firmware: 3.1s"), "{text}");
+    assert!(text.contains("Userspace: 12.0s"), "{text}");
+    // The raw systemd line stays above it, unchanged.
+    assert!(text.contains("(firmware)"), "{text}");
 }
 
 #[test]
