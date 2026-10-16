@@ -65,6 +65,25 @@ pub fn systemctl(action: Action, unit: &str, password: &str) -> Result<String, S
     )
 }
 
+/// Disable several units in sequence, reporting how many succeeded.
+pub fn disable_all(units: &[String], password: &str) -> Result<String, String> {
+    let mut disabled = 0;
+    let mut failures = Vec::new();
+
+    for unit in units {
+        match systemctl(Action::Disable, unit, password) {
+            Ok(_) => disabled += 1,
+            Err(error) => failures.push(format!("{unit}: {error}")),
+        }
+    }
+
+    if failures.is_empty() {
+        Ok(format!("Disabled {disabled} service(s)."))
+    } else {
+        Err(failures.join("\n"))
+    }
+}
+
 /// Run a command as root, feeding the password to `sudo -S`.
 ///
 /// `LC_ALL=C` keeps sudo's error messages in English so callers can detect

@@ -7,6 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use crate::filters::{SortBy, StatusFilter, TipFilter};
 use crate::privilege::{self, Action};
 use crate::system::{self, Service, SystemData, parse_duration_seconds};
+use crate::{profiles, service_db};
 
 /// The top-level screens, mirroring the pages of the original GTK application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,10 +44,19 @@ pub enum Overlay {
     None,
     /// Choose an action for the selected service.
     Menu,
-    /// Confirm the chosen action.
-    Confirm(Action),
+    /// Confirm the pending action.
+    Confirm,
     /// Ask for the sudo password.
     Password,
+}
+
+/// A unit that is enabled, safe to disable, and slow to boot.
+pub struct OptimizableService {
+    pub name: String,
+    /// Boot time as reported by `systemd-analyze blame`.
+    pub time: String,
+    pub seconds: f64,
+    pub suggestion: String,
 }
 
 /// A scrollable text pane (journal log or dependency tree).
@@ -57,9 +67,17 @@ pub struct InfoPane {
     pub scroll: u16,
 }
 
+/// Work waiting for confirmation and, if necessary, a password.
+enum Pending {
+    /// A single `systemctl` action on one unit.
+    Action(Action, String),
+    /// Disable every suggested service.
+    Bulk(Vec<String>),
+}
+
 /// Result of a background task started by the UI.
 enum CommandOutcome {
-    /// Output of a privileged `systemctl` action.
+    /// Output of a privileged command.
     Message(Result<String, String>),
     /// Text to show in the [`InfoPane`].
     Info { title: String, lines: Vec<String> },
@@ -73,6 +91,8 @@ pub struct App {
     pub data: Option<SystemData>,
     /// Selected row in the services table.
     pub selected: usize,
+    /// First visible line of the analysis page.
+    pub analysis_scroll: u16,
     /// Whether the initial snapshot is still loading.
     pub loading: bool,
     /// Services-tab filters, sort order and search query.
@@ -98,8 +118,8 @@ pub struct App {
     pub info: Option<InfoPane>,
     /// Password cached after the first privileged command.
     password: Option<String>,
-    /// Action and unit waiting for a password.
-    pending: Option<(Action, String)>,
+    /// Work waiting for confirmation and a password.
+    pending: Option<Pending>,
     command_tx: Sender<CommandOutcome>,
     command_rx: Receiver<CommandOutcome>,
 }
@@ -112,6 +132,7 @@ impl App {
             should_quit: false,
             data: None,
             selected: 0,
+            analysis_scroll: 0,
             loading: true,
             status_filter: StatusFilter::All,
             tip_filter: TipFilter::All,
@@ -176,6 +197,8 @@ impl App {
         }
     }
 
+    // --- Services tab data ---
+
     /// Services matching the current filters, in the current sort order.
     pub fn visible_services(&self) -> Vec<&Service> {
         let Some(services) = self.services() else {
@@ -232,6 +255,120 @@ impl App {
         self.visible_services().get(self.selected).copied()
     }
 
+    // --- Analysis tab data ---
+
+    /// Enabled, safe-to-disable services that slow down the boot.
+    ///
+    /// Ported from the original `_get_optimizable_services`.
+    pub fn optimizable_services(&self) -> Vec<OptimizableService> {
+        let Some(data) = &self.data else {
+            return Vec::new();
+        };
+        let (Ok(blame), Ok(services)) = (&data.blame, &data.services) else {
+            return Vec::new();
+        };
+        let safe = &profiles::data().safe_to_disable_services;
+
+        let mut optimizable: Vec<OptimizableService> = blame
+            .iter()
+            .filter(|entry| safe.contains(&entry.name))
+            .filter_map(|entry| {
+                let service = services.iter().find(|service| service.name == entry.name)?;
+                if service.enabled != "enabled" && service.enabled != "enabled-runtime" {
+                    return None;
+                }
+                let suggestion = service_db::lookup(&entry.name).map_or_else(String::new, |db| {
+                    if db.suggestion.is_empty() {
+                        db.desc.clone()
+                    } else {
+                        db.suggestion.clone()
+                    }
+                });
+                Some(OptimizableService {
+                    name: entry.name.clone(),
+                    time: entry.time.clone(),
+                    seconds: parse_duration_seconds(&entry.time),
+                    suggestion,
+                })
+            })
+            .collect();
+
+        optimizable.sort_by(|a, b| b.seconds.total_cmp(&a.seconds));
+        optimizable
+    }
+
+    /// Plain-text content of the analysis page, one entry per line.
+    pub fn analysis_lines(&self) -> Vec<String> {
+        let Some(data) = &self.data else {
+            return vec![if self.loading {
+                "Loading...".to_string()
+            } else {
+                "No data available.".to_string()
+            }];
+        };
+
+        let mut lines = vec![
+            "System".to_string(),
+            format!("  OS:      {}", data.info.os),
+            format!("  Kernel:  {}", data.info.kernel),
+            format!("  Memory:  {}", data.info.ram),
+            format!("  Uptime:  {}", data.info.uptime),
+            String::new(),
+            "Boot time".to_string(),
+        ];
+
+        match &data.boot {
+            Ok(boot) => {
+                lines.push(format!("  Total: {}", boot.total));
+                lines.push(format!("  {}", boot.detail));
+                for stage in system::parse_breakdown(&boot.detail) {
+                    lines.push(format!("    {}: {}", stage.label, stage.time));
+                }
+            }
+            Err(err) => lines.push(format!("  {err}")),
+        }
+
+        lines.push(String::new());
+        lines.push("Optimization".to_string());
+        let optimizable = self.optimizable_services();
+        if optimizable.is_empty() {
+            lines.push("  Nothing to optimize; the system already looks lean.".to_string());
+        } else {
+            let total: f64 = optimizable.iter().map(|item| item.seconds).sum();
+            lines.push(format!("  Potential savings: ~{total:.2} s"));
+            lines.push("  Suggested services (safe to disable):".to_string());
+            for item in &optimizable {
+                lines.push(format!("    {:<42} {:>9}", item.name, item.time));
+                if !item.suggestion.is_empty() {
+                    lines.push(format!("      {}", item.suggestion));
+                }
+            }
+            lines.push("  Press 'o' to disable all suggested services.".to_string());
+        }
+
+        lines.push(String::new());
+        lines.push("Slowest units".to_string());
+        match &data.blame {
+            Ok(entries) => {
+                for entry in entries.iter().take(20) {
+                    lines.push(format!("  {:>10}  {}", entry.time, entry.name));
+                }
+            }
+            Err(err) => lines.push(format!("  {err}")),
+        }
+
+        lines
+    }
+
+    /// The question shown in the confirmation dialog.
+    pub fn confirmation_prompt(&self) -> String {
+        match &self.pending {
+            Some(Pending::Action(action, unit)) => format!("{} {unit}?", action.label()),
+            Some(Pending::Bulk(units)) => format!("Disable {} suggested service(s)?", units.len()),
+            None => "Confirm?".to_string(),
+        }
+    }
+
     /// The loaded services, if any.
     fn services(&self) -> Option<&[Service]> {
         self.data
@@ -257,7 +394,7 @@ impl App {
         match self.overlay {
             Overlay::Password => return self.handle_password_key(key),
             Overlay::Menu => return self.handle_menu_key(key),
-            Overlay::Confirm(action) => return self.handle_confirm_key(key, action),
+            Overlay::Confirm => return self.handle_confirm_key(key),
             Overlay::None => {}
         }
 
@@ -283,8 +420,10 @@ impl App {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
             KeyCode::Right | KeyCode::Tab => self.select_next_tab(),
             KeyCode::Left | KeyCode::BackTab => self.select_previous_tab(),
-            KeyCode::Down | KeyCode::Char('j') => self.select_next_row(),
-            KeyCode::Up | KeyCode::Char('k') => self.select_previous_row(),
+            KeyCode::Down | KeyCode::Char('j') => self.move_down(),
+            KeyCode::Up | KeyCode::Char('k') => self.move_up(),
+            KeyCode::PageDown => self.page_down(),
+            KeyCode::PageUp => self.page_up(),
             KeyCode::Enter | KeyCode::Char('a') => self.open_action_menu(),
             KeyCode::Char('/') => {
                 self.query.clear();
@@ -303,6 +442,7 @@ impl App {
                 self.sort = self.sort.next();
                 self.reset_selection();
             }
+            KeyCode::Char('o') => self.begin_quick_optimize(),
             KeyCode::Char('r') => self.reload_requested = true,
             KeyCode::Char('l') => self.show_journal(),
             KeyCode::Char('d') => self.show_dependencies(false),
@@ -392,17 +532,20 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => self.menu_index = self.menu_index.saturating_sub(1),
             KeyCode::Enter => {
                 if let Some(action) = Action::ALL.get(self.menu_index).copied() {
-                    self.overlay = Overlay::Confirm(action);
+                    self.choose_action(action);
                 }
             }
             _ => {}
         }
     }
 
-    fn handle_confirm_key(&mut self, key: KeyEvent, action: Action) {
+    fn handle_confirm_key(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Char('y') | KeyCode::Enter => self.begin_action(action),
-            KeyCode::Char('n') | KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Char('y') | KeyCode::Enter => self.run_pending(),
+            KeyCode::Char('n') | KeyCode::Esc => {
+                self.overlay = Overlay::None;
+                self.pending = None;
+            }
             _ => {}
         }
     }
@@ -411,10 +554,7 @@ impl App {
         match key.code {
             KeyCode::Enter => {
                 self.password = Some(std::mem::take(&mut self.password_input));
-                self.overlay = Overlay::None;
-                if let Some((action, unit)) = self.pending.take() {
-                    self.spawn_action(action, unit);
-                }
+                self.run_pending();
             }
             KeyCode::Esc => {
                 self.overlay = Overlay::None;
@@ -435,36 +575,63 @@ impl App {
         }
     }
 
-    fn begin_action(&mut self, action: Action) {
+    /// Stage a single-unit action and ask for confirmation.
+    fn choose_action(&mut self, action: Action) {
         let Some(unit) = self.selected_service().map(|service| service.name.clone()) else {
-            self.overlay = Overlay::None;
             return;
         };
+        self.pending = Some(Pending::Action(action, unit));
+        self.overlay = Overlay::Confirm;
+    }
+
+    /// Stage the bulk disable of every suggested service.
+    fn begin_quick_optimize(&mut self) {
+        if self.tab != Tab::Analysis {
+            return;
+        }
+        let units: Vec<String> = self
+            .optimizable_services()
+            .iter()
+            .map(|item| item.name.clone())
+            .collect();
+        if units.is_empty() {
+            self.message = Some("Nothing to optimize.".to_string());
+            return;
+        }
+        self.pending = Some(Pending::Bulk(units));
+        self.overlay = Overlay::Confirm;
+    }
+
+    /// Run the pending work, asking for a password first if needed.
+    fn run_pending(&mut self) {
         self.overlay = Overlay::None;
+        if self.pending.is_none() {
+            return;
+        }
 
         match self.password.clone() {
-            Some(password) => self.spawn_action_with(action, unit, password),
+            Some(password) => {
+                if let Some(pending) = self.pending.take() {
+                    self.spawn_pending(pending, password);
+                }
+            }
             None => {
-                self.pending = Some((action, unit));
                 self.password_input.clear();
                 self.overlay = Overlay::Password;
             }
         }
     }
 
-    fn spawn_action(&mut self, action: Action, unit: String) {
-        let password = self.password.clone().unwrap_or_default();
-        self.spawn_action_with(action, unit, password);
-    }
-
-    fn spawn_action_with(&mut self, action: Action, unit: String, password: String) {
+    fn spawn_pending(&mut self, pending: Pending, password: String) {
         let sender = self.command_tx.clone();
         self.running = true;
         self.message = None;
         thread::spawn(move || {
-            let _ = sender.send(CommandOutcome::Message(privilege::systemctl(
-                action, &unit, &password,
-            )));
+            let result = match pending {
+                Pending::Action(action, unit) => privilege::systemctl(action, &unit, &password),
+                Pending::Bulk(units) => privilege::disable_all(&units, &password),
+            };
+            let _ = sender.send(CommandOutcome::Message(result));
         });
     }
 
@@ -483,15 +650,43 @@ impl App {
         self.tab = Tab::ALL[previous];
     }
 
-    fn select_next_row(&mut self) {
-        let count = self.visible_services().len();
-        if count > 0 {
-            self.selected = (self.selected + 1).min(count - 1);
+    fn move_down(&mut self) {
+        match self.tab {
+            Tab::Services => {
+                let count = self.visible_services().len();
+                if count > 0 {
+                    self.selected = (self.selected + 1).min(count - 1);
+                }
+            }
+            Tab::Analysis => self.scroll_analysis(1),
+            _ => {}
         }
     }
 
-    fn select_previous_row(&mut self) {
-        self.selected = self.selected.saturating_sub(1);
+    fn move_up(&mut self) {
+        match self.tab {
+            Tab::Services => self.selected = self.selected.saturating_sub(1),
+            Tab::Analysis => self.scroll_analysis(-1),
+            _ => {}
+        }
+    }
+
+    fn page_down(&mut self) {
+        if self.tab == Tab::Analysis {
+            self.scroll_analysis(10);
+        }
+    }
+
+    fn page_up(&mut self) {
+        if self.tab == Tab::Analysis {
+            self.scroll_analysis(-10);
+        }
+    }
+
+    fn scroll_analysis(&mut self, delta: i32) {
+        let max = self.analysis_lines().len().saturating_sub(1) as i32;
+        let next = (i32::from(self.analysis_scroll) + delta).clamp(0, max);
+        self.analysis_scroll = next as u16;
     }
 }
 
@@ -549,6 +744,27 @@ mod tests {
             ]),
         });
         app
+    }
+
+    /// Add one service from the "safe to disable" list to the snapshot.
+    fn add_optimizable(app: &mut App) {
+        if let Some(data) = app.data.as_mut() {
+            if let Ok(services) = &mut data.services {
+                services.push(Service {
+                    name: "bluetooth.service".to_string(),
+                    active: "active".to_string(),
+                    sub: "running".to_string(),
+                    description: "Bluetooth".to_string(),
+                    enabled: "enabled".to_string(),
+                });
+            }
+            if let Ok(blame) = &mut data.blame {
+                blame.push(BlameEntry {
+                    time: "1.500s".to_string(),
+                    name: "bluetooth.service".to_string(),
+                });
+            }
+        }
     }
 
     #[test]
@@ -647,7 +863,8 @@ mod tests {
         assert_eq!(app.overlay, Overlay::Menu);
 
         app.handle_key(press(KeyCode::Enter));
-        assert_eq!(app.overlay, Overlay::Confirm(Action::Enable));
+        assert_eq!(app.overlay, Overlay::Confirm);
+        assert_eq!(app.confirmation_prompt(), "Enable a.service?");
 
         app.handle_key(press(KeyCode::Char('y')));
         assert_eq!(app.overlay, Overlay::Password);
@@ -681,5 +898,37 @@ mod tests {
 
         app.handle_key(press(KeyCode::Esc));
         assert!(app.info.is_none());
+    }
+
+    #[test]
+    fn quick_optimize_lists_safe_enabled_services() {
+        let mut app = app_with_services();
+        add_optimizable(&mut app);
+
+        let optimizable = app.optimizable_services();
+        assert_eq!(optimizable.len(), 1);
+        assert_eq!(optimizable[0].name, "bluetooth.service");
+        assert!((optimizable[0].seconds - 1.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn quick_optimize_asks_for_confirmation_on_the_analysis_tab() {
+        let mut app = app_with_services();
+        add_optimizable(&mut app);
+        app.tab = Tab::Analysis;
+
+        app.handle_key(press(KeyCode::Char('o')));
+
+        assert_eq!(app.overlay, Overlay::Confirm);
+        assert_eq!(app.confirmation_prompt(), "Disable 1 suggested service(s)?");
+    }
+
+    #[test]
+    fn analysis_lines_summarise_the_snapshot() {
+        let app = app_with_services();
+        let text = app.analysis_lines().join("\n");
+        assert!(text.contains("System"));
+        assert!(text.contains("Slowest units"));
+        assert!(text.contains("Optimization"));
     }
 }

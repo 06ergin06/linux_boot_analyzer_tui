@@ -73,6 +73,36 @@ fn parse_boot_summary(line: &str) -> Option<BootSummary> {
     })
 }
 
+/// One stage of the boot process, e.g. `firmware` or `userspace`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BootComponent {
+    pub label: String,
+    pub time: String,
+}
+
+/// Split the `systemd-analyze` detail line into its stages.
+///
+/// The line looks like
+/// `Startup finished in 3.4s (firmware) + 1.2s (loader) + 5.6s (kernel) = 22.7s`.
+pub fn parse_breakdown(detail: &str) -> Vec<BootComponent> {
+    detail
+        .split('+')
+        .filter_map(|segment| {
+            let (before, after) = segment.split_once('(')?;
+            let label = after.split(')').next()?.trim();
+            // Drop the leading "Startup finished in" from the first segment.
+            let time = before.split_whitespace().last()?;
+            if label.is_empty() {
+                return None;
+            }
+            Some(BootComponent {
+                label: label.to_string(),
+                time: time.to_string(),
+            })
+        })
+        .collect()
+}
+
 // --- systemd-analyze blame ---
 
 /// One line of `systemd-analyze blame`.
@@ -362,6 +392,23 @@ mod tests {
     #[test]
     fn empty_boot_line_is_rejected() {
         assert!(parse_boot_summary("   ").is_none());
+    }
+
+    #[test]
+    fn parses_boot_stages() {
+        let components = parse_breakdown(
+            "Startup finished in 3.456s (firmware) + 1.234s (loader) + 5.678s (kernel) + 12.345s (userspace) = 22.713s",
+        );
+        assert_eq!(components.len(), 4);
+        assert_eq!(components[0].label, "firmware");
+        assert_eq!(components[0].time, "3.456s");
+        assert_eq!(components[3].label, "userspace");
+        assert_eq!(components[3].time, "12.345s");
+    }
+
+    #[test]
+    fn breakdown_without_stages_is_empty() {
+        assert!(parse_breakdown("Startup finished in 22.713s").is_empty());
     }
 
     #[test]

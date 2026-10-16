@@ -52,70 +52,17 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_analysis(frame: &mut Frame, app: &App, area: Rect) {
-    let [info, boot, blame] = Layout::vertical([
-        Constraint::Length(6),
-        Constraint::Length(4),
-        Constraint::Min(0),
-    ])
-    .areas(area);
-
-    render_system_info(frame, app, info);
-    render_boot(frame, app, boot);
-    render_blame(frame, app, blame);
-}
-
-fn render_system_info(frame: &mut Frame, app: &App, area: Rect) {
-    let lines = match &app.data {
-        Some(data) => vec![
-            Line::from(format!("OS:      {}", data.info.os)),
-            Line::from(format!("Kernel:  {}", data.info.kernel)),
-            Line::from(format!("Memory:  {}", data.info.ram)),
-            Line::from(format!("Uptime:  {}", data.info.uptime)),
-        ],
-        None => vec![Line::from(status_text(app))],
-    };
-
-    frame.render_widget(
-        Paragraph::new(lines).block(Block::bordered().title(" System ")),
-        area,
-    );
-}
-
-fn render_boot(frame: &mut Frame, app: &App, area: Rect) {
-    let lines = match &app.data {
-        Some(data) => match &data.boot {
-            Ok(boot) => vec![
-                Line::from(format!("Total: {}", boot.total)),
-                Line::from(boot.detail.as_str()).dim(),
-            ],
-            Err(err) => vec![Line::from(err.as_str())],
-        },
-        None => vec![Line::from(status_text(app))],
-    };
+    let content = app.analysis_lines();
+    let lines: Vec<Line> = content
+        .iter()
+        .map(|line| Line::from(line.as_str()))
+        .collect();
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(" Boot Time "))
-            .wrap(Wrap { trim: true }),
-        area,
-    );
-}
-
-fn render_blame(frame: &mut Frame, app: &App, area: Rect) {
-    let lines: Vec<Line> = match &app.data {
-        Some(data) => match &data.blame {
-            Ok(entries) => entries
-                .iter()
-                .take(20)
-                .map(|entry| Line::from(format!("{:>10}  {}", entry.time, entry.name)))
-                .collect(),
-            Err(err) => vec![Line::from(err.as_str())],
-        },
-        None => vec![Line::from(status_text(app))],
-    };
-
-    frame.render_widget(
-        Paragraph::new(lines).block(Block::bordered().title(" Slowest Units ")),
+            .block(Block::bordered().title(" Analysis "))
+            .wrap(Wrap { trim: false })
+            .scroll((app.analysis_scroll, 0)),
         area,
     );
 }
@@ -261,7 +208,7 @@ fn render_placeholder(frame: &mut Frame, tab: Tab, area: Rect, text: &str) {
 }
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
-    const HINTS: &str = "q: quit   Enter/a: actions   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   l: log   d: deps   r: reload";
+    const HINTS: &str = "q: quit   Enter/a: actions   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   o: optimize   l: log   d: deps   r: reload";
 
     // The status line shows the latest command result when there is one.
     let text: &str = match &app.message {
@@ -277,7 +224,7 @@ fn render_overlay(frame: &mut Frame, app: &App) {
     match app.overlay {
         Overlay::None => {}
         Overlay::Menu => render_action_menu(frame, app),
-        Overlay::Confirm(action) => render_confirm(frame, app, action),
+        Overlay::Confirm => render_confirm(frame, app),
         Overlay::Password => render_password(frame, app),
     }
 }
@@ -296,17 +243,12 @@ fn render_action_menu(frame: &mut Frame, app: &App) {
     frame.render_stateful_widget(list, area, &mut state);
 }
 
-fn render_confirm(frame: &mut Frame, app: &App, action: Action) {
-    let unit = app
-        .selected_service()
-        .map(|service| service.name.as_str())
-        .unwrap_or("the selected service");
-
+fn render_confirm(frame: &mut Frame, app: &App) {
     let area = centered_rect(50, 5, frame.area());
     frame.render_widget(Clear, area);
 
     let text = vec![
-        Line::from(format!("{} {}?", action.label(), unit)),
+        Line::from(app.confirmation_prompt()),
         Line::from(""),
         Line::from("y / Enter to confirm, n / Esc to cancel").dim(),
     ];
