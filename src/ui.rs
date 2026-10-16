@@ -6,7 +6,7 @@ use ratatui::widgets::{
     Block, Clear, List, ListState, Paragraph, Row, Table, TableState, Tabs, Wrap,
 };
 
-use crate::app::{App, Overlay, Tab};
+use crate::app::{App, Overlay, ProfilesView, Tab};
 use crate::autostart::AutostartEntry;
 use crate::privilege::Action;
 use crate::system::Service;
@@ -43,7 +43,7 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
         Tab::Analysis => render_analysis(frame, app, area),
         Tab::Services => render_services(frame, app, area),
         Tab::Autostart => render_autostart(frame, app, area),
-        Tab::Profiles => render_profiles(frame, area),
+        Tab::Profiles => render_profiles(frame, app, area),
     }
 }
 
@@ -247,29 +247,128 @@ fn render_autostart_detail(frame: &mut Frame, entry: Option<&AutostartEntry>, ar
     );
 }
 
-fn render_profiles(frame: &mut Frame, area: Rect) {
-    let profiles = profiles::data();
-    let mut ids: Vec<&String> = profiles.profiles.keys().collect();
-    ids.sort();
+fn render_profiles(frame: &mut Frame, app: &App, area: Rect) {
+    let [lists, detail] = Layout::vertical([Constraint::Min(0), Constraint::Length(7)]).areas(area);
+    let [profiles_area, backups_area] =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(lists);
 
-    let mut lines = vec![Line::from("Available optimization profiles:")];
-    for id in ids {
-        let count = profiles.profiles[id].services.len();
-        lines.push(Line::from(format!("  - {id} ({count} services)")));
-    }
-    lines.push(Line::from(""));
-    lines.push(Line::from("Applying profiles is not implemented yet.").dim());
+    render_profile_list(frame, app, profiles_area);
+    render_backup_list(frame, app, backups_area);
+    render_profile_detail(frame, app, detail);
+}
+
+fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
+    let ids = profiles::ids();
+    let counts: Vec<(String, String)> = ids
+        .iter()
+        .map(|id| {
+            let (enable, disable) = profiles::selections(id);
+            (enable.len().to_string(), disable.len().to_string())
+        })
+        .collect();
+
+    let rows = ids
+        .iter()
+        .enumerate()
+        .map(|(index, id)| Row::new([*id, counts[index].0.as_str(), counts[index].1.as_str()]));
+
+    let title = if app.profiles_view == ProfilesView::Profiles {
+        " Profiles (active) "
+    } else {
+        " Profiles "
+    };
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Min(14),
+            Constraint::Length(8),
+            Constraint::Length(8),
+        ],
+    )
+    .header(Row::new(["Profile", "Enable", "Disable"]).style(Style::new().bold()))
+    .block(Block::bordered().title(title))
+    .row_highlight_style(Style::new().reversed())
+    .highlight_symbol("> ");
+
+    let mut state = TableState::default().with_selected(app.profiles_selected);
+    frame.render_stateful_widget(table, area, &mut state);
+}
+
+fn render_backup_list(frame: &mut Frame, app: &App, area: Rect) {
+    let backups = app.backups();
+    let counts: Vec<String> = backups
+        .iter()
+        .map(|backup| backup.services.len().to_string())
+        .collect();
+
+    let rows = backups
+        .iter()
+        .enumerate()
+        .map(|(index, backup)| Row::new([backup.name.as_str(), counts[index].as_str()]));
+
+    let title = if app.profiles_view == ProfilesView::Backups {
+        " Restore Points (active) "
+    } else {
+        " Restore Points "
+    };
+
+    let table = Table::new(rows, [Constraint::Min(20), Constraint::Length(8)])
+        .header(Row::new(["Backup", "Services"]).style(Style::new().bold()))
+        .block(Block::bordered().title(title))
+        .row_highlight_style(Style::new().reversed())
+        .highlight_symbol("> ");
+
+    let mut state = TableState::default().with_selected(app.backups_selected);
+    frame.render_stateful_widget(table, area, &mut state);
+}
+
+fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
+    let lines = match app.profiles_view {
+        ProfilesView::Profiles => match app.selected_profile() {
+            Some(id) => {
+                let (enable, disable) = profiles::selections(id);
+                vec![
+                    Line::from(format!("Profile: {id}")),
+                    Line::from(format!("Enables:  {}", join_or_dash(&enable))),
+                    Line::from(format!("Disables: {}", join_or_dash(&disable))),
+                    Line::from("Enter/a: apply profile   v: show restore points").dim(),
+                ]
+            }
+            None => vec![Line::from("No profile selected.")],
+        },
+        ProfilesView::Backups => match app.selected_backup() {
+            Some(backup) => vec![
+                Line::from(backup.name.as_str()),
+                Line::from(format!("Saved: {}", backup.timestamp)),
+                Line::from(format!("Services: {}", backup.services.len())),
+                Line::from(format!("File: {}", backup.path.display())),
+                Line::from("d: restore   x: delete   b: create new   v: show profiles").dim(),
+            ],
+            None => vec![Line::from(
+                "No restore point yet. Press 'b' to create one.".to_string(),
+            )],
+        },
+    };
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(" Profiles "))
+            .block(Block::bordered().title(" Details "))
             .wrap(Wrap { trim: true }),
         area,
     );
 }
 
+fn join_or_dash(names: &[String]) -> String {
+    if names.is_empty() {
+        "-".to_string()
+    } else {
+        names.join(", ")
+    }
+}
+
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
-    const HINTS: &str = "q: quit   Enter/a: actions   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   o: optimize   w: report   l: log   d: deps   r: reload";
+    const HINTS: &str = "q: quit   Enter/a: action   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter   o: optimize   w: report   l: log   d: deps/restore   b: backup   v: view   x: remove   space: toggle";
 
     // The status line shows the latest command result when there is one.
     let text: &str = match &app.message {
@@ -449,6 +548,7 @@ mod tests {
                 delay: 5,
                 enabled: false,
             }]),
+            backups: Ok(Vec::new()),
         }
     }
 
@@ -534,5 +634,13 @@ mod tests {
         let text = render_to_string(&app, 100, 24);
         assert!(text.contains("New Autostart Entry"));
         assert!(text.contains("My App"));
+    }
+
+    #[test]
+    fn profiles_tab_lists_profiles_and_restore_points() {
+        let app = loaded_app(Tab::Profiles);
+        let text = render_to_string(&app, 110, 24);
+        assert!(text.contains("minimum"));
+        assert!(text.contains("Restore Points"));
     }
 }

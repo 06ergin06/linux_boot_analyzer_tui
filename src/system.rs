@@ -8,6 +8,7 @@ use std::fs;
 use std::process::Command;
 
 use crate::autostart::{self, AutostartEntry};
+use crate::backups::{self, Backup};
 use crate::privilege;
 
 /// Everything the UI needs, gathered on a background thread.
@@ -17,6 +18,7 @@ pub struct SystemData {
     pub blame: Result<Vec<BlameEntry>, String>,
     pub services: Result<Vec<Service>, String>,
     pub autostart: Result<Vec<AutostartEntry>, String>,
+    pub backups: Result<Vec<Backup>, String>,
 }
 
 /// Gather all data. Each section can fail independently.
@@ -27,6 +29,7 @@ pub fn load() -> SystemData {
         blame: blame(),
         services: services(),
         autostart: autostart::entries(),
+        backups: backups::list(),
     }
 }
 

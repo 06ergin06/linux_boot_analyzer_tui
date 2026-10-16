@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
@@ -6,6 +6,7 @@ use std::thread;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use crate::autostart::{self, AutostartEntry};
+use crate::backups::{self, Backup};
 use crate::filters::{SortBy, StatusFilter, TipFilter};
 use crate::privilege::{self, Action};
 use crate::system::{self, Service, SystemData, parse_duration_seconds};
@@ -71,6 +72,13 @@ pub struct InfoPane {
     pub scroll: u16,
 }
 
+/// Which list the Profiles tab is focused on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfilesView {
+    Profiles,
+    Backups,
+}
+
 /// Work waiting for confirmation and, if necessary, a password.
 enum Pending {
     /// A single `systemctl` action on one unit.
@@ -81,12 +89,26 @@ enum Pending {
     RemoveAutostart { name: String, path: PathBuf },
     /// Create a new autostart entry.
     AddAutostart { name: String, command: String },
+    /// Apply an optimization profile.
+    ApplyProfile(profiles::Plan),
+    /// Restore unit-file states from a backup.
+    RestoreBackup(profiles::Plan),
+    /// Delete a restore point.
+    RemoveBackup { name: String, path: PathBuf },
+    /// Save the current unit-file states as a restore point.
+    CreateBackup(BTreeMap<String, String>),
 }
 
 impl Pending {
     /// Whether the work needs root privileges.
     fn needs_password(&self) -> bool {
-        matches!(self, Pending::Action(..) | Pending::Bulk(..))
+        matches!(
+            self,
+            Pending::Action(..)
+                | Pending::Bulk(..)
+                | Pending::ApplyProfile(..)
+                | Pending::RestoreBackup(..)
+        )
     }
 }
 
@@ -108,6 +130,12 @@ pub struct App {
     pub selected: usize,
     /// Selected row in the autostart list.
     pub autostart_selected: usize,
+    /// Which list the Profiles tab is focused on.
+    pub profiles_view: ProfilesView,
+    /// Selected profile in the profiles list.
+    pub profiles_selected: usize,
+    /// Selected backup in the backups list.
+    pub backups_selected: usize,
     /// Values of the open form, one per field.
     pub form_values: Vec<String>,
     /// Which form field is being edited.
@@ -154,6 +182,9 @@ impl App {
             data: None,
             selected: 0,
             autostart_selected: 0,
+            profiles_view: ProfilesView::Profiles,
+            profiles_selected: 0,
+            backups_selected: 0,
             form_values: Vec::new(),
             form_index: 0,
             analysis_scroll: 0,
@@ -392,8 +423,91 @@ impl App {
             Some(Pending::RemoveAutostart { name, .. }) => {
                 format!("Remove autostart entry \"{name}\"?")
             }
-            Some(Pending::AddAutostart { .. }) | None => "Confirm?".to_string(),
+            Some(Pending::ApplyProfile(plan)) => {
+                format!("Apply this profile? ({})", plan.summary())
+            }
+            Some(Pending::RestoreBackup(plan)) => {
+                format!("Restore this backup? ({})", plan.summary())
+            }
+            Some(Pending::RemoveBackup { name, .. }) => format!("Delete backup \"{name}\"?"),
+            Some(Pending::AddAutostart { .. }) | Some(Pending::CreateBackup(..)) | None => {
+                "Confirm?".to_string()
+            }
         }
+    }
+
+    // --- Profiles and backups ---
+
+    /// Restore points, newest first.
+    pub fn backups(&self) -> &[Backup] {
+        self.data
+            .as_ref()
+            .and_then(|data| data.backups.as_ref().ok())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    /// The profile currently highlighted.
+    pub fn selected_profile(&self) -> Option<&'static str> {
+        profiles::ids().get(self.profiles_selected).copied()
+    }
+
+    /// The backup currently highlighted.
+    pub fn selected_backup(&self) -> Option<&Backup> {
+        self.backups().get(self.backups_selected)
+    }
+
+    /// Current enabled/active state of every known unit.
+    fn current_states(&self) -> HashMap<&str, (&str, &str)> {
+        self.services()
+            .map(|services| {
+                services
+                    .iter()
+                    .map(|service| {
+                        (
+                            service.name.as_str(),
+                            (service.enabled.as_str(), service.active.as_str()),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Work out the exact units to act on to reach the wanted state.
+    ///
+    /// Ported from `ProfileManager.apply_profile_batch`.
+    fn build_plan(&self, enable: &[String], disable: &[String]) -> profiles::Plan {
+        let current = self.current_states();
+        let mut plan = profiles::Plan::default();
+
+        for name in enable {
+            let (enabled, active) = current
+                .get(name.as_str())
+                .copied()
+                .unwrap_or(("unknown", "unknown"));
+            if !profiles::is_enabled(enabled) {
+                plan.enable.push(name.clone());
+            }
+            if active != "active" {
+                plan.start.push(name.clone());
+            }
+        }
+
+        for name in disable {
+            let (enabled, active) = current
+                .get(name.as_str())
+                .copied()
+                .unwrap_or(("unknown", "unknown"));
+            if profiles::is_enabled(enabled) {
+                plan.disable.push(name.clone());
+            }
+            if active == "active" {
+                plan.stop.push(name.clone());
+            }
+        }
+
+        plan
     }
 
     // --- Autostart tab data ---
@@ -492,7 +606,7 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => self.move_up(),
             KeyCode::PageDown => self.page_down(),
             KeyCode::PageUp => self.page_up(),
-            KeyCode::Enter | KeyCode::Char('a') => self.open_action_menu(),
+            KeyCode::Enter | KeyCode::Char('a') => self.primary_action(),
             KeyCode::Char('/') => {
                 self.query.clear();
                 self.searching = true;
@@ -512,14 +626,16 @@ impl App {
             }
             KeyCode::Char('o') => self.begin_quick_optimize(),
             KeyCode::Char('w') => self.export_report(),
+            KeyCode::Char('b') => self.begin_create_backup(),
+            KeyCode::Char('v') => self.toggle_profiles_view(),
             KeyCode::Char(' ') => self.toggle_autostart(),
             KeyCode::Char('n') => self.begin_add_form(),
-            KeyCode::Char('x') => self.begin_remove_autostart(),
+            KeyCode::Char('x') => self.remove_selected(),
             KeyCode::Char('[') => self.adjust_autostart_delay(-1),
             KeyCode::Char(']') => self.adjust_autostart_delay(1),
             KeyCode::Char('r') => self.reload_requested = true,
             KeyCode::Char('l') => self.show_journal(),
-            KeyCode::Char('d') => self.show_dependencies(false),
+            KeyCode::Char('d') => self.dependencies_or_restore(),
             KeyCode::Char('D') => self.show_dependencies(true),
             _ => {}
         }
@@ -710,6 +826,15 @@ impl App {
                 }
                 Pending::AddAutostart { name, command } => autostart::add(&name, &command)
                     .map(|path| format!("Created {}", path.display())),
+                Pending::ApplyProfile(plan) | Pending::RestoreBackup(plan) => {
+                    run_plan(&plan, &password)
+                }
+                Pending::RemoveBackup { path, .. } => {
+                    backups::remove(&path).map(|()| "Backup deleted.".to_string())
+                }
+                Pending::CreateBackup(states) => {
+                    backups::create(states).map(|backup| format!("Saved {}", backup.name))
+                }
             };
             let _ = sender.send(CommandOutcome::Message(result));
         });
@@ -823,6 +948,131 @@ impl App {
         }
     }
 
+    // --- Profiles and backups ---
+
+    /// Enter/a: the contextual primary action for the current tab.
+    fn primary_action(&mut self) {
+        match self.tab {
+            Tab::Services => self.open_action_menu(),
+            Tab::Profiles => self.begin_apply_profile(),
+            _ => {}
+        }
+    }
+
+    /// d: dependencies on the Services tab, restore on the Profiles tab.
+    fn dependencies_or_restore(&mut self) {
+        match self.tab {
+            Tab::Services => self.show_dependencies(false),
+            Tab::Profiles => self.begin_restore_backup(),
+            _ => {}
+        }
+    }
+
+    /// x: delete the selected autostart entry or restore point.
+    fn remove_selected(&mut self) {
+        match self.tab {
+            Tab::Autostart => self.begin_remove_autostart(),
+            Tab::Profiles => self.begin_remove_backup(),
+            _ => {}
+        }
+    }
+
+    fn toggle_profiles_view(&mut self) {
+        if self.tab != Tab::Profiles {
+            return;
+        }
+        self.profiles_view = match self.profiles_view {
+            ProfilesView::Profiles => ProfilesView::Backups,
+            ProfilesView::Backups => ProfilesView::Profiles,
+        };
+    }
+
+    /// Save the current unit-file states as a restore point.
+    fn begin_create_backup(&mut self) {
+        if self.tab != Tab::Profiles {
+            return;
+        }
+        let states = self
+            .services()
+            .map(|services| {
+                services
+                    .iter()
+                    .map(|service| (service.name.clone(), service.enabled.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        self.perform(Pending::CreateBackup(states));
+    }
+
+    /// Stage the application of the selected profile.
+    fn begin_apply_profile(&mut self) {
+        if self.tab != Tab::Profiles || self.profiles_view != ProfilesView::Profiles {
+            return;
+        }
+        let Some(profile_id) = self.selected_profile() else {
+            return;
+        };
+
+        let (enable, disable) = profiles::selections(profile_id);
+        let plan = self.build_plan(&enable, &disable);
+        if plan.is_empty() {
+            self.message = Some("The profile already matches the system.".to_string());
+            return;
+        }
+
+        self.pending = Some(Pending::ApplyProfile(plan));
+        self.overlay = Overlay::Confirm;
+    }
+
+    /// Stage the restoration of the selected backup.
+    fn begin_restore_backup(&mut self) {
+        if self.tab != Tab::Profiles || self.profiles_view != ProfilesView::Backups {
+            return;
+        }
+        let Some(backup) = self.selected_backup() else {
+            return;
+        };
+
+        let current = self.current_states();
+        let mut enable = Vec::new();
+        let mut disable = Vec::new();
+        for (name, state) in &backup.services {
+            let Some((enabled, _)) = current.get(name.as_str()).copied() else {
+                continue;
+            };
+            if profiles::is_enabled(state) && !profiles::is_enabled(enabled) {
+                enable.push(name.clone());
+            } else if !profiles::is_enabled(state) && profiles::is_enabled(enabled) {
+                disable.push(name.clone());
+            }
+        }
+
+        let plan = self.build_plan(&enable, &disable);
+        if plan.is_empty() {
+            self.message = Some("The system already matches this backup.".to_string());
+            return;
+        }
+
+        self.pending = Some(Pending::RestoreBackup(plan));
+        self.overlay = Overlay::Confirm;
+    }
+
+    fn begin_remove_backup(&mut self) {
+        if self.tab != Tab::Profiles || self.profiles_view != ProfilesView::Backups {
+            return;
+        }
+        let Some(backup) = self.selected_backup() else {
+            return;
+        };
+
+        self.pending = Some(Pending::RemoveBackup {
+            name: backup.name.clone(),
+            path: backup.path.clone(),
+        });
+        self.overlay = Overlay::Confirm;
+    }
+
     fn reset_selection(&mut self) {
         self.selected = 0;
     }
@@ -852,8 +1102,17 @@ impl App {
                     self.autostart_selected = (self.autostart_selected + 1).min(count - 1);
                 }
             }
+            Tab::Profiles => {
+                let count = self.focused_list_len();
+                let selected = match self.profiles_view {
+                    ProfilesView::Profiles => &mut self.profiles_selected,
+                    ProfilesView::Backups => &mut self.backups_selected,
+                };
+                if count > 0 {
+                    *selected = (*selected + 1).min(count - 1);
+                }
+            }
             Tab::Analysis => self.scroll_analysis(1),
-            _ => {}
         }
     }
 
@@ -861,8 +1120,22 @@ impl App {
         match self.tab {
             Tab::Services => self.selected = self.selected.saturating_sub(1),
             Tab::Autostart => self.autostart_selected = self.autostart_selected.saturating_sub(1),
+            Tab::Profiles => {
+                let selected = match self.profiles_view {
+                    ProfilesView::Profiles => &mut self.profiles_selected,
+                    ProfilesView::Backups => &mut self.backups_selected,
+                };
+                *selected = selected.saturating_sub(1);
+            }
             Tab::Analysis => self.scroll_analysis(-1),
-            _ => {}
+        }
+    }
+
+    /// Number of rows in the list the Profiles tab is focused on.
+    fn focused_list_len(&self) -> usize {
+        match self.profiles_view {
+            ProfilesView::Profiles => profiles::ids().len(),
+            ProfilesView::Backups => self.backups().len(),
         }
     }
 
@@ -897,6 +1170,26 @@ fn report_path() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
     format!("boot-report-{seconds}.txt")
+}
+
+/// Carry out a profile/backup plan as root, one verb at a time.
+fn run_plan(plan: &profiles::Plan, password: &str) -> Result<String, String> {
+    let steps: [(&str, &[String]); 4] = [
+        ("enable", &plan.enable),
+        ("start", &plan.start),
+        ("disable", &plan.disable),
+        ("stop", &plan.stop),
+    ];
+
+    for (verb, units) in steps {
+        if units.is_empty() {
+            continue;
+        }
+        let names: Vec<&str> = units.iter().map(String::as_str).collect();
+        privilege::systemctl_many(verb, &names, password)?;
+    }
+
+    Ok("Done.".to_string())
 }
 
 #[cfg(test)]
@@ -954,6 +1247,7 @@ mod tests {
                 delay: 0,
                 enabled: true,
             }]),
+            backups: Ok(Vec::new()),
         });
         app
     }
@@ -1201,5 +1495,67 @@ mod tests {
         }
 
         assert_eq!(app.form_values, ["My App", "myapp"]);
+    }
+
+    #[test]
+    fn profiles_view_toggles_between_lists() {
+        let mut app = app_with_services();
+        app.tab = Tab::Profiles;
+        assert_eq!(app.profiles_view, ProfilesView::Profiles);
+
+        app.handle_key(press(KeyCode::Char('v')));
+        assert_eq!(app.profiles_view, ProfilesView::Backups);
+    }
+
+    #[test]
+    fn applying_a_profile_confirms_with_a_plan() {
+        let mut app = app_with_services();
+        app.tab = Tab::Profiles;
+
+        // cups.service belongs to the "minimum" profile and is enabled here.
+        if let Some(data) = app.data.as_mut()
+            && let Ok(services) = &mut data.services
+        {
+            services.push(Service {
+                name: "cups.service".to_string(),
+                active: "inactive".to_string(),
+                sub: "dead".to_string(),
+                description: "Printing".to_string(),
+                enabled: "enabled".to_string(),
+            });
+        }
+
+        assert_eq!(app.selected_profile(), Some("minimum"));
+        let (enable, disable) = profiles::selections("minimum");
+        let plan = app.build_plan(&enable, &disable);
+        assert!(plan.disable.contains(&"cups.service".to_string()));
+
+        app.handle_key(press(KeyCode::Char('a')));
+        assert_eq!(app.overlay, Overlay::Confirm);
+        assert!(app.confirmation_prompt().starts_with("Apply this profile?"));
+    }
+
+    #[test]
+    fn plan_ignores_services_already_in_the_wanted_state() {
+        let mut app = app_with_services();
+
+        // Already disabled, so the "minimum" profile has nothing to do for it.
+        if let Some(data) = app.data.as_mut()
+            && let Ok(services) = &mut data.services
+        {
+            services.push(Service {
+                name: "cups.service".to_string(),
+                active: "inactive".to_string(),
+                sub: "dead".to_string(),
+                description: "Printing".to_string(),
+                enabled: "disabled".to_string(),
+            });
+        }
+
+        let (enable, disable) = profiles::selections("minimum");
+        let plan = app.build_plan(&enable, &disable);
+
+        assert!(!plan.disable.contains(&"cups.service".to_string()));
+        assert!(!plan.stop.contains(&"cups.service".to_string()));
     }
 }

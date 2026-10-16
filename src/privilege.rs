@@ -53,16 +53,18 @@ impl Action {
 
 /// Run `systemctl <verb> <unit>` as root.
 pub fn systemctl(action: Action, unit: &str, password: &str) -> Result<String, String> {
-    run(
-        &[
-            "systemctl",
-            "--no-pager",
-            "--no-ask-password",
-            action.verb(),
-            unit,
-        ],
-        password,
-    )
+    systemctl_many(action.verb(), &[unit], password)
+}
+
+/// Run `systemctl <verb> <unit>...` as root for several units at once.
+pub fn systemctl_many(verb: &str, units: &[&str], password: &str) -> Result<String, String> {
+    if units.is_empty() {
+        return Ok(String::new());
+    }
+
+    let mut args: Vec<&str> = vec!["systemctl", "--no-pager", "--no-ask-password", verb];
+    args.extend_from_slice(units);
+    run(&args, password)
 }
 
 /// Disable several units in sequence, reporting how many succeeded.

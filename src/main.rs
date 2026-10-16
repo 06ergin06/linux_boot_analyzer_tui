@@ -3,6 +3,7 @@
 
 mod app;
 mod autostart;
+mod backups;
 mod filters;
 mod privilege;
 mod profiles;
