@@ -347,3 +347,26 @@ fn confirmation_dialog_keeps_the_key_hint_visible() {
     assert!(text.contains("Enter to confirm"), "{text}");
     assert!(text.contains("Esc to cancel"), "{text}");
 }
+
+#[test]
+fn a_long_service_description_is_not_clipped() {
+    let app = loaded_app(Tab::Services);
+
+    // The pane grows to the wrapped text instead of cutting it off at six rows.
+    let text = render_to_string(&app, 60, 26);
+
+    assert!(text.contains("Do not disable."), "{text}");
+    assert!(text.contains("and network connectivity."), "{text}");
+}
+
+#[test]
+fn a_wrapping_autostart_path_is_not_clipped() {
+    let app = loaded_app(Tab::Autostart);
+
+    let text = render_to_string(&app, 40, 24);
+
+    assert!(text.contains("Command: example --start"), "{text}");
+    // The path is broken over the pane edge but not cut off.
+    assert!(text.contains("File:"), "{text}");
+    assert!(text.contains("esktop"), "{text}");
+}

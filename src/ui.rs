@@ -198,10 +198,13 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     let visible = app.visible_services();
     let times = app.blame_times();
 
+    // The details grow with the knowledge-base text, so a long description is
+    // never cut off; the table above keeps at least a few rows.
+    let detail = service_detail_lines(visible.get(app.selected).copied());
     let [filter_area, table_area, detail_area] = Layout::vertical([
         Constraint::Length(1),
-        Constraint::Min(0),
-        Constraint::Length(6),
+        Constraint::Min(3),
+        Constraint::Length(detail_height(&detail, area.width, area.height)),
     ])
     .areas(area);
 
@@ -250,7 +253,7 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     let mut state = TableState::default().with_selected(app.selected);
     frame.render_stateful_widget(table, table_area, &mut state);
 
-    render_service_detail(frame, visible.get(app.selected).copied(), detail_area);
+    render_service_detail(frame, &detail, detail_area);
 }
 
 /// `" Services (.service) — 12/450 services "` for the table border.
@@ -293,8 +296,18 @@ fn render_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn render_service_detail(frame: &mut Frame, service: Option<&Service>, area: Rect) {
-    let lines = match service {
+fn render_service_detail(frame: &mut Frame, lines: &[Line], area: Rect) {
+    frame.render_widget(
+        Paragraph::new(lines.to_vec())
+            .block(panel("tui_details"))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+/// The knowledge-base text for the selected unit.
+fn service_detail_lines(service: Option<&Service>) -> Vec<Line<'_>> {
+    match service {
         Some(service) => match service_db::lookup(&service.name) {
             Some(entry) => vec![
                 Line::from(vec![
@@ -312,14 +325,7 @@ fn render_service_detail(frame: &mut Frame, service: Option<&Service>, area: Rec
             ],
         },
         None => vec![Line::from(i18n::t("tui_no_service_selected")).style(muted())],
-    };
-
-    frame.render_widget(
-        Paragraph::new(lines)
-            .block(panel("tui_details"))
-            .wrap(Wrap { trim: true }),
-        area,
-    );
+    }
 }
 
 /// Colour for a systemd state word: healthy, transitional, off or broken.
@@ -374,8 +380,13 @@ fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let [list_area, detail_area] =
-        Layout::vertical([Constraint::Min(0), Constraint::Length(6)]).areas(area);
+    // The details (a long command or file path) grow with their content.
+    let detail = autostart_detail_lines(app.selected_autostart());
+    let [list_area, detail_area] = Layout::vertical([
+        Constraint::Min(3),
+        Constraint::Length(detail_height(&detail, area.width, area.height)),
+    ])
+    .areas(area);
 
     let delays: Vec<String> = entries
         .iter()
@@ -414,11 +425,21 @@ fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
     let mut state = TableState::default().with_selected(app.autostart_selected);
     frame.render_stateful_widget(table, list_area, &mut state);
 
-    render_autostart_detail(frame, app.selected_autostart(), detail_area);
+    render_autostart_detail(frame, &detail, detail_area);
 }
 
-fn render_autostart_detail(frame: &mut Frame, entry: Option<&AutostartEntry>, area: Rect) {
-    let lines = match entry {
+fn render_autostart_detail(frame: &mut Frame, lines: &[Line], area: Rect) {
+    frame.render_widget(
+        Paragraph::new(lines.to_vec())
+            .block(panel("tui_details"))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+/// The fields of the selected autostart entry.
+fn autostart_detail_lines(entry: Option<&AutostartEntry>) -> Vec<Line<'_>> {
+    match entry {
         Some(entry) => vec![
             Line::from(entry.name.as_str()).bold(),
             detail_line(i18n::t("komut"), &entry.exec),
@@ -432,14 +453,7 @@ fn render_autostart_detail(frame: &mut Frame, entry: Option<&AutostartEntry>, ar
             detail_line(i18n::t("tui_file"), &entry.path.display().to_string()),
         ],
         None => vec![Line::from(i18n::t("tui_no_entry_selected")).style(muted())],
-    };
-
-    frame.render_widget(
-        Paragraph::new(lines)
-            .block(panel("tui_details"))
-            .wrap(Wrap { trim: true }),
-        area,
-    );
+    }
 }
 
 /// "enabled" / "disabled" for an autostart entry.
@@ -792,7 +806,7 @@ fn render_form(frame: &mut Frame, app: &App) {
     lines.push(Line::from(""));
     lines.push(Line::from(i18n::t("tui_bar_form")).style(muted()));
 
-    let area = centered_rect(60, dialog_height(&lines, 60), frame.area());
+    let area = centered_rect(60, block_height(&lines, 60), frame.area());
     frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(lines)
@@ -811,7 +825,7 @@ fn render_password(frame: &mut Frame, app: &App) {
         Line::from(i18n::t("tui_password_keys")).style(muted()),
     ];
 
-    let area = centered_rect(40, dialog_height(&lines, 40), frame.area());
+    let area = centered_rect(40, block_height(&lines, 40), frame.area());
     frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(lines)
@@ -829,7 +843,7 @@ fn render_delay(frame: &mut Frame, app: &App) {
         Line::from(i18n::t("tui_delay_keys")).style(muted()),
     ];
 
-    let area = centered_rect(40, dialog_height(&lines, 40), frame.area());
+    let area = centered_rect(40, block_height(&lines, 40), frame.area());
     frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(lines)
@@ -877,15 +891,23 @@ fn line_text(line: &Line) -> String {
         .collect()
 }
 
-/// Height a bordered dialog needs to draw `lines` at `width` without clipping
-/// any of them, two border rows included.
-fn dialog_height(lines: &[Line], width: u16) -> u16 {
+/// Height a bordered block needs to draw `lines` at `width` without clipping
+/// any of them, the two border rows included.
+fn block_height(lines: &[Line], width: u16) -> u16 {
     let inner = width.saturating_sub(2).max(1) as usize;
     let rows: usize = lines
         .iter()
         .map(|line| wrapped_rows(&line_text(line), inner))
         .sum();
     rows as u16 + 2
+}
+
+/// Height a detail pane should take: as many rows as its content needs, but
+/// never so many that the list above it is squeezed away.
+fn detail_height(lines: &[Line], width: u16, area_height: u16) -> u16 {
+    block_height(lines, width)
+        .min(area_height.saturating_sub(4))
+        .max(4)
 }
 
 /// How many rows `text` needs when wrapped into `width` columns.
