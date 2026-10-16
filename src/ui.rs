@@ -208,7 +208,7 @@ fn render_placeholder(frame: &mut Frame, tab: Tab, area: Rect, text: &str) {
 }
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
-    const HINTS: &str = "q: quit   Enter/a: actions   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   o: optimize   l: log   d: deps   r: reload";
+    const HINTS: &str = "q: quit   Enter/a: actions   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   o: optimize   w: report   l: log   d: deps   r: reload";
 
     // The status line shows the latest command result when there is one.
     let text: &str = match &app.message {
