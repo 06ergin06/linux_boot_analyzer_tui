@@ -3,6 +3,7 @@
 
 mod app;
 mod filters;
+mod privilege;
 mod profiles;
 mod service_db;
 mod system;
@@ -39,6 +40,7 @@ fn main() -> io::Result<()> {
 
         while !app.should_quit {
             app.poll_data(&receiver);
+            app.poll_command();
             terminal.draw(|frame| ui::render(frame, &app))?;
 
             if event::poll(EVENT_POLL)?

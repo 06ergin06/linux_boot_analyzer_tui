@@ -1,9 +1,11 @@
 use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::thread;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use crate::filters::{SortBy, StatusFilter, TipFilter};
+use crate::privilege::{self, Action};
 use crate::system::{Service, SystemData, parse_duration_seconds};
 
 /// The top-level screens, mirroring the pages of the original GTK application.
@@ -35,6 +37,18 @@ impl Tab {
     }
 }
 
+/// A modal presented on top of the current tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Overlay {
+    None,
+    /// Choose an action for the selected service.
+    Menu,
+    /// Confirm the chosen action.
+    Confirm(Action),
+    /// Ask for the sudo password.
+    Password,
+}
+
 /// All application state, kept free of rendering and I/O.
 pub struct App {
     pub tab: Tab,
@@ -54,10 +68,27 @@ pub struct App {
     pub searching: bool,
     /// Set when the user asks for a data refresh; the main loop reloads.
     pub reload_requested: bool,
+    /// Modal currently shown, if any.
+    pub overlay: Overlay,
+    /// Selected entry in the action menu.
+    pub menu_index: usize,
+    /// Whatever the user has typed into the password prompt.
+    pub password_input: String,
+    /// Latest command result, shown in the status line.
+    pub message: Option<String>,
+    /// Whether a privileged command is currently running.
+    pub running: bool,
+    /// Password cached after the first privileged command.
+    password: Option<String>,
+    /// Action and unit waiting for a password.
+    pending: Option<(Action, String)>,
+    command_tx: Sender<Result<String, String>>,
+    command_rx: Receiver<Result<String, String>>,
 }
 
 impl App {
     pub fn new() -> Self {
+        let (command_tx, command_rx) = mpsc::channel();
         Self {
             tab: Tab::Analysis,
             should_quit: false,
@@ -70,6 +101,15 @@ impl App {
             query: String::new(),
             searching: false,
             reload_requested: false,
+            overlay: Overlay::None,
+            menu_index: 0,
+            password_input: String::new(),
+            message: None,
+            running: false,
+            password: None,
+            pending: None,
+            command_tx,
+            command_rx,
         }
     }
 
@@ -82,6 +122,30 @@ impl App {
             }
             Err(TryRecvError::Disconnected) => self.loading = false,
             Err(TryRecvError::Empty) => {}
+        }
+    }
+
+    /// Take the result of a background privileged command, if it finished.
+    pub fn poll_command(&mut self) {
+        match self.command_rx.try_recv() {
+            Ok(Ok(output)) => {
+                self.running = false;
+                self.message = Some(if output.is_empty() {
+                    "Done.".to_string()
+                } else {
+                    output
+                });
+                // The unit states changed, so refresh the snapshot.
+                self.reload_requested = true;
+            }
+            Ok(Err(error)) => {
+                self.running = false;
+                if privilege::is_auth_failure(&error) {
+                    self.password = None;
+                }
+                self.message = Some(error);
+            }
+            Err(TryRecvError::Empty | TryRecvError::Disconnected) => {}
         }
     }
 
@@ -136,6 +200,11 @@ impl App {
             .unwrap_or_default()
     }
 
+    /// The service currently highlighted in the table.
+    pub fn selected_service(&self) -> Option<&Service> {
+        self.visible_services().get(self.selected).copied()
+    }
+
     /// The loaded services, if any.
     fn services(&self) -> Option<&[Service]> {
         self.data
@@ -151,6 +220,13 @@ impl App {
         // Some platforms report key release as well; only act on presses.
         if key.kind != KeyEventKind::Press {
             return;
+        }
+
+        match self.overlay {
+            Overlay::Password => return self.handle_password_key(key),
+            Overlay::Menu => return self.handle_menu_key(key),
+            Overlay::Confirm(action) => return self.handle_confirm_key(key, action),
+            Overlay::None => {}
         }
 
         // While searching, keys edit the query instead of controlling the UI.
@@ -177,6 +253,7 @@ impl App {
             KeyCode::Left | KeyCode::BackTab => self.select_previous_tab(),
             KeyCode::Down | KeyCode::Char('j') => self.select_next_row(),
             KeyCode::Up | KeyCode::Char('k') => self.select_previous_row(),
+            KeyCode::Enter | KeyCode::Char('a') => self.open_action_menu(),
             KeyCode::Char('/') => {
                 self.query.clear();
                 self.searching = true;
@@ -197,6 +274,89 @@ impl App {
             KeyCode::Char('r') => self.reload_requested = true,
             _ => {}
         }
+    }
+
+    fn handle_menu_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.menu_index = (self.menu_index + 1).min(Action::ALL.len() - 1);
+            }
+            KeyCode::Up | KeyCode::Char('k') => self.menu_index = self.menu_index.saturating_sub(1),
+            KeyCode::Enter => {
+                if let Some(action) = Action::ALL.get(self.menu_index).copied() {
+                    self.overlay = Overlay::Confirm(action);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_confirm_key(&mut self, key: KeyEvent, action: Action) {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Enter => self.begin_action(action),
+            KeyCode::Char('n') | KeyCode::Esc => self.overlay = Overlay::None,
+            _ => {}
+        }
+    }
+
+    fn handle_password_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Enter => {
+                self.password = Some(std::mem::take(&mut self.password_input));
+                self.overlay = Overlay::None;
+                if let Some((action, unit)) = self.pending.take() {
+                    self.spawn_action(action, unit);
+                }
+            }
+            KeyCode::Esc => {
+                self.overlay = Overlay::None;
+                self.pending = None;
+            }
+            KeyCode::Backspace => {
+                self.password_input.pop();
+            }
+            KeyCode::Char(character) => self.password_input.push(character),
+            _ => {}
+        }
+    }
+
+    fn open_action_menu(&mut self) {
+        if self.tab == Tab::Services && self.selected_service().is_some() {
+            self.menu_index = 0;
+            self.overlay = Overlay::Menu;
+        }
+    }
+
+    fn begin_action(&mut self, action: Action) {
+        let Some(unit) = self.selected_service().map(|service| service.name.clone()) else {
+            self.overlay = Overlay::None;
+            return;
+        };
+        self.overlay = Overlay::None;
+
+        match self.password.clone() {
+            Some(password) => self.spawn_action_with(action, unit, password),
+            None => {
+                self.pending = Some((action, unit));
+                self.password_input.clear();
+                self.overlay = Overlay::Password;
+            }
+        }
+    }
+
+    fn spawn_action(&mut self, action: Action, unit: String) {
+        let password = self.password.clone().unwrap_or_default();
+        self.spawn_action_with(action, unit, password);
+    }
+
+    fn spawn_action_with(&mut self, action: Action, unit: String, password: String) {
+        let sender = self.command_tx.clone();
+        self.running = true;
+        self.message = None;
+        thread::spawn(move || {
+            let _ = sender.send(privilege::systemctl(action, &unit, &password));
+        });
     }
 
     fn reset_selection(&mut self) {
@@ -248,6 +408,7 @@ mod tests {
 
     fn app_with_services() -> App {
         let mut app = App::new();
+        app.tab = Tab::Services;
         app.loading = false;
         app.data = Some(SystemData {
             info: SystemInfo {
@@ -368,5 +529,29 @@ mod tests {
         app.handle_key(press(KeyCode::Esc));
         assert!(!app.searching);
         assert!(app.query.is_empty());
+    }
+
+    #[test]
+    fn action_flow_confirms_then_asks_for_a_password() {
+        let mut app = app_with_services();
+        app.handle_key(press(KeyCode::Char('a')));
+        assert_eq!(app.overlay, Overlay::Menu);
+
+        app.handle_key(press(KeyCode::Enter));
+        assert_eq!(app.overlay, Overlay::Confirm(Action::Enable));
+
+        app.handle_key(press(KeyCode::Char('y')));
+        assert_eq!(app.overlay, Overlay::Password);
+        assert!(app.pending.is_some());
+    }
+
+    #[test]
+    fn declining_a_confirmation_closes_the_overlay() {
+        let mut app = app_with_services();
+        app.handle_key(press(KeyCode::Char('a')));
+        app.handle_key(press(KeyCode::Enter));
+        app.handle_key(press(KeyCode::Char('n')));
+        assert_eq!(app.overlay, Overlay::None);
+        assert!(app.pending.is_none());
     }
 }

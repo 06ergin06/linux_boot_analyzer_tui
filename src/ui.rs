@@ -2,9 +2,12 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Paragraph, Row, Table, TableState, Tabs, Wrap};
+use ratatui::widgets::{
+    Block, Clear, List, ListState, Paragraph, Row, Table, TableState, Tabs, Wrap,
+};
 
-use crate::app::{App, Tab};
+use crate::app::{App, Overlay, Tab};
+use crate::privilege::Action;
 use crate::system::Service;
 use crate::{profiles, service_db};
 
@@ -19,7 +22,8 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     render_tabs(frame, app, header);
     render_body(frame, app, body);
-    render_footer(frame, footer);
+    render_footer(frame, app, footer);
+    render_overlay(frame, app);
 }
 
 fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
@@ -255,13 +259,93 @@ fn render_placeholder(frame: &mut Frame, tab: Tab, area: Rect, text: &str) {
     );
 }
 
-fn render_footer(frame: &mut Frame, area: Rect) {
-    let footer = Paragraph::new(
-        "q: quit   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   r: reload",
-    )
-    .style(Style::new().dim());
+fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
+    const HINTS: &str = "q: quit   Enter/a: actions   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter/sort   r: reload";
 
-    frame.render_widget(footer, area);
+    // The status line shows the latest command result when there is one.
+    let text: &str = match &app.message {
+        Some(message) => message,
+        None if app.running => "Running...",
+        None => HINTS,
+    };
+
+    frame.render_widget(Paragraph::new(text).style(Style::new().dim()), area);
+}
+
+fn render_overlay(frame: &mut Frame, app: &App) {
+    match app.overlay {
+        Overlay::None => {}
+        Overlay::Menu => render_action_menu(frame, app),
+        Overlay::Confirm(action) => render_confirm(frame, app, action),
+        Overlay::Password => render_password(frame, app),
+    }
+}
+
+fn render_action_menu(frame: &mut Frame, app: &App) {
+    let area = centered_rect(32, Action::ALL.len() as u16 + 2, frame.area());
+    frame.render_widget(Clear, area);
+
+    let items = Action::ALL.iter().map(|action| Line::from(action.label()));
+    let list = List::new(items)
+        .block(Block::bordered().title(" Action "))
+        .highlight_style(Style::new().reversed())
+        .highlight_symbol("> ");
+
+    let mut state = ListState::default().with_selected(Some(app.menu_index));
+    frame.render_stateful_widget(list, area, &mut state);
+}
+
+fn render_confirm(frame: &mut Frame, app: &App, action: Action) {
+    let unit = app
+        .selected_service()
+        .map(|service| service.name.as_str())
+        .unwrap_or("the selected service");
+
+    let area = centered_rect(50, 5, frame.area());
+    frame.render_widget(Clear, area);
+
+    let text = vec![
+        Line::from(format!("{} {}?", action.label(), unit)),
+        Line::from(""),
+        Line::from("y / Enter to confirm, n / Esc to cancel").dim(),
+    ];
+    frame.render_widget(
+        Paragraph::new(text)
+            .block(Block::bordered().title(" Confirm "))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn render_password(frame: &mut Frame, app: &App) {
+    let area = centered_rect(40, 5, frame.area());
+    frame.render_widget(Clear, area);
+
+    let masked = "*".repeat(app.password_input.chars().count());
+    let text = vec![
+        Line::from("sudo password:"),
+        Line::from(masked),
+        Line::from(""),
+        Line::from("Enter to run, Esc to cancel").dim(),
+    ];
+    frame.render_widget(
+        Paragraph::new(text)
+            .block(Block::bordered().title(" Authentication "))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+/// A rectangle of the given size, centred inside `area`.
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
+    let width = width.min(area.width);
+    let height = height.min(area.height);
+    Rect {
+        x: area.x + (area.width - width) / 2,
+        y: area.y + (area.height - height) / 2,
+        width,
+        height,
+    }
 }
 
 fn status_text(app: &App) -> &'static str {
@@ -344,5 +428,14 @@ mod tests {
         let app = App::new();
         let text = render_to_string(&app, 90, 24);
         assert!(text.contains("Loading..."));
+    }
+
+    #[test]
+    fn action_menu_overlay_lists_the_available_actions() {
+        let mut app = loaded_app(Tab::Services);
+        app.overlay = Overlay::Menu;
+        let text = render_to_string(&app, 100, 24);
+        assert!(text.contains("Enable"));
+        assert!(text.contains("Unmask"));
     }
 }
