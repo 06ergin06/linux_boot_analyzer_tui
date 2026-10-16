@@ -669,7 +669,10 @@ fn saving_a_typed_delay_writes_the_entry() {
     let mut app = app_with_services();
     app.tab = Tab::Autostart;
 
+    // `save` edits the file in place, so the entry has to exist on disk.
     let path = std::env::temp_dir().join("opencode-delay-test.desktop");
+    std::fs::write(&path, "[Desktop Entry]\nName=Example\nExec=example\n")
+        .expect("temporary entry");
     if let Some(data) = app.data.as_mut()
         && let Ok(entries) = &mut data.autostart
         && let Some(entry) = entries.first_mut()
