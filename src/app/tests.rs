@@ -226,6 +226,24 @@ fn device_units_cannot_be_managed() {
 }
 
 #[test]
+fn a_second_command_is_refused_while_one_runs() {
+    let mut app = app_with_services();
+    app.running = true;
+
+    app.perform(Pending::RemoveBackup {
+        name: "busy".to_string(),
+        path: PathBuf::from("/tmp/opencode-busy-backup.json"),
+    });
+
+    // The job is dropped and the reason is shown; nothing was started.
+    assert!(app.running);
+    assert_eq!(
+        app.message.as_deref(),
+        Some("A command is already running.")
+    );
+}
+
+#[test]
 fn q_and_escape_quit() {
     for code in [KeyCode::Char('q'), KeyCode::Esc] {
         let mut app = App::new();

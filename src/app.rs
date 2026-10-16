@@ -269,6 +269,18 @@ impl App {
         self.level = Level::Info;
     }
 
+    /// Whether a second command has to wait for the one already running.
+    ///
+    /// Two `systemctl` processes would race over the same unit states, and the
+    /// status line already says that work is in progress.
+    fn refuse_while_running(&mut self) -> bool {
+        if self.running {
+            self.notify(i18n::t("tui_busy").to_string(), Level::Info);
+            return true;
+        }
+        false
+    }
+
     /// Take the result of a background task, if one finished.
     pub fn poll_command(&mut self) {
         match self.command_rx.try_recv() {
@@ -805,6 +817,9 @@ impl App {
 
         let password = self.password.clone();
         let sender = self.command_tx.clone();
+        if self.refuse_while_running() {
+            return;
+        }
         self.running = true;
         self.clear_message();
         thread::spawn(move || {
@@ -826,6 +841,9 @@ impl App {
         };
 
         let sender = self.command_tx.clone();
+        if self.refuse_while_running() {
+            return;
+        }
         self.running = true;
         self.clear_message();
         thread::spawn(move || {
@@ -953,6 +971,9 @@ impl App {
     }
 
     fn spawn_pending(&mut self, pending: Pending, password: String) {
+        if self.refuse_while_running() {
+            return;
+        }
         let sender = self.command_tx.clone();
         self.running = true;
         self.clear_message();

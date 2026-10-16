@@ -417,6 +417,11 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ("tui_loading", "Loading...", "Yükleniyor..."),
     ("tui_no_data", "No data available.", "Veri yok."),
     ("tui_running", "Running...", "Çalışıyor..."),
+    (
+        "tui_busy",
+        "A command is already running.",
+        "Bir komut zaten çalışıyor.",
+    ),
     ("tui_done", "Done.", "Tamamlandı."),
     (
         "tui_operation_success",
