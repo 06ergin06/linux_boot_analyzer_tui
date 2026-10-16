@@ -206,6 +206,60 @@ fn the_status_line_advertises_the_language_key() {
     assert!(text.contains("L: language"));
 }
 
+fn render_buffer(app: &App, width: u16, height: u16) -> ratatui::buffer::Buffer {
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).expect("terminal");
+    terminal.draw(|frame| render(frame, app)).expect("draw");
+    terminal.backend().buffer().clone()
+}
+
+#[test]
+fn the_theme_paints_titles_states_and_the_selection() {
+    let mut app = loaded_app(Tab::Services);
+    // One healthy and one failed unit, so both state colours appear.
+    if let Some(data) = app.data.as_mut()
+        && let Ok(services) = &mut data.services
+    {
+        services.push(Service {
+            name: "cups.service".to_string(),
+            active: "failed".to_string(),
+            sub: "failed".to_string(),
+            description: "Printing".to_string(),
+            enabled: "disabled".to_string(),
+        });
+    }
+
+    let buffer = render_buffer(&app, 100, 30);
+    let colours: Vec<Color> = buffer.content.iter().map(|cell| cell.fg).collect();
+
+    // Panel titles and table headers (accent), a running unit and a failure.
+    assert!(colours.contains(&ACCENT), "no accent colour");
+    assert!(colours.contains(&OK), "no healthy colour");
+    assert!(colours.contains(&BAD), "no failure colour");
+    assert!(colours.contains(&MUTED), "no muted colour");
+    // The selection stays readable on a terminal without colour.
+    assert!(
+        buffer
+            .content
+            .iter()
+            .any(|cell| cell.modifier.contains(Modifier::REVERSED)),
+        "the selected row is not highlighted"
+    );
+}
+
+#[test]
+fn the_status_line_reports_success_and_failure_in_colour() {
+    let mut app = loaded_app(Tab::Services);
+    app.message = Some("Disable failed.".to_string());
+    app.level = Level::Error;
+    let buffer = render_buffer(&app, 100, 30);
+    assert!(buffer.content.iter().any(|cell| cell.fg == BAD));
+
+    app.level = Level::Success;
+    let buffer = render_buffer(&app, 100, 30);
+    assert!(buffer.content.iter().any(|cell| cell.fg == OK));
+}
+
 #[test]
 fn tiny_terminals_do_not_panic() {
     let mut confirming = loaded_app(Tab::Services);
