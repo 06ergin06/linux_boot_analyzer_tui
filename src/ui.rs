@@ -545,20 +545,36 @@ fn render_action_menu(frame: &mut Frame, app: &App) {
 }
 
 fn render_confirm(frame: &mut Frame, app: &App) {
-    let area = centered_rect(50, 5, frame.area());
+    let prompt = app.confirmation_prompt();
+    let keys = i18n::t("tui_confirm_keys");
+
+    // The question and the key hint wrap on narrow dialogs, so size the box to
+    // the rows they need instead of clipping the hint away.
+    let width = frame.area().width.min(50);
+    let inner_width = width.saturating_sub(2).max(1) as usize;
+    let keys_rows = wrapped_rows(keys, inner_width) as u16;
+    let height =
+        (wrapped_rows(&prompt, inner_width) as u16 + keys_rows + 3).min(frame.area().height);
+
+    let area = centered_rect(width, height, frame.area());
     frame.render_widget(Clear, area);
 
-    let text = vec![
-        Line::from(app.confirmation_prompt()),
-        Line::from(""),
-        Line::from(i18n::t("tui_confirm_keys")).dim(),
-    ];
+    let block = Block::bordered().title(title("tui_confirm"));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let [prompt_area, _, keys_area] = Layout::vertical([
+        Constraint::Min(0),
+        Constraint::Length(1),
+        Constraint::Length(keys_rows),
+    ])
+    .areas(inner);
+
     frame.render_widget(
-        Paragraph::new(text)
-            .block(Block::bordered().title(title("tui_confirm")))
-            .wrap(Wrap { trim: true }),
-        area,
+        Paragraph::new(prompt).wrap(Wrap { trim: true }),
+        prompt_area,
     );
+    frame.render_widget(Paragraph::new(keys).dim(), keys_area);
 }
 
 fn render_form(frame: &mut Frame, app: &App) {
@@ -630,6 +646,35 @@ fn render_info(frame: &mut Frame, app: &App) {
 }
 
 /// A rectangle of the given size, centred inside `area`.
+/// How many rows `text` needs when wrapped into `width` columns.
+fn wrapped_rows(text: &str, width: usize) -> usize {
+    if width == 0 {
+        return 1;
+    }
+
+    let mut rows = 1;
+    let mut column = 0;
+
+    for word in text.split_whitespace() {
+        let length = word.chars().count();
+        if column == 0 {
+            column = length;
+        } else if column + length < width {
+            column += length + 1;
+        } else {
+            rows += 1;
+            column = length;
+        }
+        // A single word can still be wider than the whole line.
+        while column > width {
+            rows += 1;
+            column -= width;
+        }
+    }
+
+    rows
+}
+
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     let width = width.min(area.width);
     let height = height.min(area.height);

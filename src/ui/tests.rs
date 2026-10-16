@@ -1,5 +1,6 @@
 use super::*;
 use crate::system::{BlameEntry, BootSummary, Service, SystemData, SystemInfo};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
@@ -191,8 +192,45 @@ fn the_status_line_advertises_the_language_key() {
 
 #[test]
 fn tiny_terminals_do_not_panic() {
+    let mut confirming = loaded_app(Tab::Services);
+    confirming.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    confirming.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
     for (width, height) in [(20, 6), (10, 4), (1, 1)] {
-        let app = loaded_app(Tab::Services);
-        let _ = render_to_string(&app, width, height);
+        let _ = render_to_string(&loaded_app(Tab::Services), width, height);
+        let _ = render_to_string(&confirming, width, height);
     }
+}
+
+#[test]
+fn the_confirmation_dialog_counts_wrapped_rows() {
+    assert_eq!(wrapped_rows("short question?", 40), 1);
+    assert_eq!(wrapped_rows("a question that does not fit", 10), 3);
+    assert_eq!(wrapped_rows("unbreakablesupercalifragilistic", 5), 7);
+    assert_eq!(wrapped_rows("anything", 0), 1);
+}
+
+#[test]
+fn confirmation_dialog_keeps_the_key_hint_visible() {
+    let mut app = loaded_app(Tab::Services);
+    // A long unit name wraps the question inside the dialog.
+    if let Some(data) = app.data.as_mut() {
+        data.services = Ok(vec![Service {
+            name: "systemd-networkd-wait-online.service".to_string(),
+            active: "active".to_string(),
+            sub: "running".to_string(),
+            description: "Wait for the network to come online".to_string(),
+            enabled: "enabled".to_string(),
+        }]);
+    }
+    app.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    let text = render_to_string(&app, 80, 24);
+    assert!(
+        text.contains("Enable systemd-networkd-wait-online"),
+        "{text}"
+    );
+    assert!(text.contains("Enter to confirm"), "{text}");
+    assert!(text.contains("Esc to cancel"), "{text}");
 }
