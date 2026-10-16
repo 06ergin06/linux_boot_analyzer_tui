@@ -296,6 +296,20 @@ fn password_dialog_keeps_the_key_hint_visible() {
 }
 
 #[test]
+fn the_language_menu_lists_every_language() {
+    let mut app = loaded_app(Tab::Analysis);
+    app.handle_key(KeyEvent::new(KeyCode::Char('L'), KeyModifiers::NONE));
+    app.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+
+    let text = render_to_string(&app, 80, 24);
+    assert!(text.contains("Language"), "{text}");
+    assert!(text.contains("English"), "{text}");
+    assert!(text.contains("Türkçe"), "{text}");
+    // The keys are advertised in the bar under the menu.
+    assert!(text.contains("Up/Down: choose"), "{text}");
+}
+
+#[test]
 fn the_delay_dialog_shows_the_value_and_the_key_hint() {
     let mut app = loaded_app(Tab::Autostart);
     app.handle_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));

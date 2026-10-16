@@ -78,6 +78,8 @@ pub enum Overlay {
     Form,
     /// Type a start delay for the selected autostart entry.
     Delay,
+    /// Choose the interface language.
+    Language,
 }
 
 /// A unit that is enabled, safe to disable, and slow to boot.
@@ -175,6 +177,8 @@ pub struct App {
     pub overlay: Overlay,
     /// Selected entry in the action menu.
     pub menu_index: usize,
+    /// Selected entry in the language picker.
+    pub language_index: usize,
     /// Whatever the user has typed into the password prompt.
     pub password_input: String,
     /// Whatever the user has typed into the delay prompt.
@@ -225,6 +229,7 @@ impl App {
             reload_requested: false,
             overlay: Overlay::None,
             menu_index: 0,
+            language_index: 0,
             password_input: String::new(),
             delay_input: String::new(),
             delay_replace: false,
@@ -696,6 +701,7 @@ impl App {
             Overlay::Confirm => return self.handle_confirm_key(key),
             Overlay::Form => return self.handle_form_key(key),
             Overlay::Delay => return self.handle_delay_key(key),
+            Overlay::Language => return self.handle_language_key(key),
             Overlay::None => {}
         }
 
@@ -750,7 +756,7 @@ impl App {
             KeyCode::Char('o') => self.begin_quick_optimize(),
             KeyCode::Char('w') => self.export_report(),
             KeyCode::Char('?') => self.open_help(),
-            KeyCode::Char('L') => self.toggle_language(),
+            KeyCode::Char('L') => self.open_language_menu(),
             KeyCode::Char('b') => self.begin_create_backup(),
             KeyCode::Char('v') => self.cycle_view(),
             KeyCode::Char(' ') => self.toggle_autostart(),
@@ -1312,11 +1318,32 @@ impl App {
         self.selected = 0;
     }
 
-    /// L: switch between English and Turkish, and remember the choice.
-    fn toggle_language(&mut self) {
-        let lang = i18n::toggle();
-        let text = i18n::fill(i18n::t("tui_language_set"), &[lang.native_name()]);
-        self.notify(text, Level::Info);
+    /// L: open the language picker on the language in use.
+    fn open_language_menu(&mut self) {
+        self.language_index = i18n::Lang::ALL
+            .iter()
+            .position(|lang| *lang == i18n::lang())
+            .unwrap_or(0);
+        self.overlay = Overlay::Language;
+    }
+
+    fn handle_language_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.language_index = (self.language_index + 1).min(i18n::Lang::ALL.len() - 1);
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.language_index = self.language_index.saturating_sub(1);
+            }
+            KeyCode::Enter => {
+                if let Some(lang) = i18n::Lang::ALL.get(self.language_index).copied() {
+                    i18n::choose(lang);
+                }
+                self.overlay = Overlay::None;
+            }
+            _ => {}
+        }
     }
 
     fn select_next_tab(&mut self) {

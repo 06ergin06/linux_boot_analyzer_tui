@@ -22,6 +22,9 @@ pub enum Lang {
 }
 
 impl Lang {
+    /// Every language we ship, in the order the picker lists them.
+    pub const ALL: [Lang; 2] = [Lang::En, Lang::Tr];
+
     /// ISO code, also used in the config file.
     pub fn code(self) -> &'static str {
         match self {
@@ -35,14 +38,6 @@ impl Lang {
         match self {
             Lang::En => "English",
             Lang::Tr => "Türkçe",
-        }
-    }
-
-    /// The other language, for the switcher.
-    pub fn next(self) -> Lang {
-        match self {
-            Lang::En => Lang::Tr,
-            Lang::Tr => Lang::En,
         }
     }
 
@@ -108,12 +103,10 @@ pub fn fill(template: &str, values: &[&str]) -> String {
     text
 }
 
-/// Switch to the other language and remember the choice.
-pub fn toggle() -> Lang {
-    let next = lang().next();
-    set_lang(next);
-    save_preference(next);
-    next
+/// Switch to `lang` and remember the choice.
+pub fn choose(lang: Lang) {
+    set_lang(lang);
+    save_preference(lang);
 }
 
 /// Load the saved language, falling back to the system locale.
@@ -478,6 +471,7 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "A command is required.",
         "Bir komut gerekli.",
     ),
+    ("tui_language_title", "Language", "Dil"),
     ("tui_language_set", "Language: {}", "Dil: {}"),
     // --- Report -----------------------------------------------------------
     (
@@ -495,6 +489,11 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "tui_bar_menu",
         "Enter: choose    Up/Down: move    Esc: cancel",
         "Enter: seç    Yukarı/Aşağı: gez    Esc: iptal",
+    ),
+    (
+        "tui_bar_language",
+        "Up/Down: choose    Enter: apply    Esc: cancel",
+        "Yukarı/Aşağı: seç    Enter: uygula    Esc: iptal",
     ),
     (
         "tui_bar_confirm",
@@ -580,8 +579,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_help_language",
-        "  L                switch language",
-        "  L                dili değiştir",
+        "  L                choose the language",
+        "  L                dili seç",
     ),
     ("tui_help_services", "Services", "Servisler"),
     (
@@ -810,10 +809,11 @@ mod tests {
     }
 
     #[test]
-    fn languages_cycle() {
-        assert_eq!(Lang::En.next(), Lang::Tr);
-        assert_eq!(Lang::Tr.next(), Lang::En);
+    fn every_language_is_listed_once() {
+        // The picker offers exactly these, in this order.
+        assert_eq!(Lang::ALL, [Lang::En, Lang::Tr]);
         assert_eq!(Lang::Tr.code(), "tr");
+        assert_eq!(Lang::Tr.native_name(), "Türkçe");
     }
 
     #[test]

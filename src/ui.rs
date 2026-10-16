@@ -9,6 +9,7 @@ use ratatui::widgets::{
 use crate::app::{App, Level, Overlay, Tab};
 use crate::autostart::AutostartEntry;
 use crate::i18n;
+use crate::i18n::Lang;
 use crate::privilege::Action;
 use crate::system::{self, Service};
 use crate::{profiles, service_db};
@@ -683,6 +684,7 @@ fn action_hints(app: &App) -> &'static str {
         Overlay::Password => return i18n::t("tui_bar_password"),
         Overlay::Form => return i18n::t("tui_bar_form"),
         Overlay::Delay => return i18n::t("tui_bar_delay"),
+        Overlay::Language => return i18n::t("tui_bar_language"),
         Overlay::None => {}
     }
 
@@ -707,7 +709,23 @@ fn render_overlay(frame: &mut Frame, app: &App) {
         Overlay::Password => render_password(frame, app),
         Overlay::Form => render_form(frame, app),
         Overlay::Delay => render_delay(frame, app),
+        Overlay::Language => render_language(frame, app),
     }
+}
+
+/// The language picker: a small menu like the action menu.
+fn render_language(frame: &mut Frame, app: &App) {
+    let area = centered_rect(30, Lang::ALL.len() as u16 + 2, frame.area());
+    frame.render_widget(Clear, area);
+
+    let items = Lang::ALL.iter().map(|lang| Line::from(lang.native_name()));
+    let list = List::new(items)
+        .block(panel("tui_language_title"))
+        .highlight_style(highlight())
+        .highlight_symbol("> ");
+
+    let mut state = ListState::default().with_selected(Some(app.language_index));
+    frame.render_stateful_widget(list, area, &mut state);
 }
 
 fn render_action_menu(frame: &mut Frame, app: &App) {

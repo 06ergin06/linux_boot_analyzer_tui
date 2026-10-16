@@ -692,3 +692,28 @@ fn saving_a_typed_delay_writes_the_entry() {
     assert!(contents.contains("sleep 12"), "{contents}");
     let _ = std::fs::remove_file(&path);
 }
+
+#[test]
+fn the_language_picker_opens_on_the_current_language() {
+    let mut app = app_with_services();
+
+    app.handle_key(press(KeyCode::Char('L')));
+
+    assert_eq!(app.overlay, Overlay::Language);
+    assert_eq!(app.language_index, 0); // English is active in the test suite
+
+    // The arrows move inside the menu and never past its ends.
+    app.handle_key(press(KeyCode::Down));
+    assert_eq!(app.language_index, 1);
+    app.handle_key(press(KeyCode::Down));
+    assert_eq!(app.language_index, 1);
+    app.handle_key(press(KeyCode::Up));
+    assert_eq!(app.language_index, 0);
+
+    app.handle_key(press(KeyCode::Esc));
+    assert_eq!(app.overlay, Overlay::None);
+}
+
+// There is deliberately no test that confirms a language: the language is
+// process-wide state and libtest runs the tests in parallel, so switching it
+// would leak into every other test. `i18n::ALL` is checked in `src/i18n.rs`.
