@@ -324,7 +324,7 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ("komut", "Command", "Komut"),
     ("tui_enabled", "enabled", "etkin"),
     ("tui_disabled", "disabled", "kapalı"),
-    ("tui_file", "File:", "Dosya:"),
+    ("tui_file", "File", "Dosya"),
     (
         "tui_new_autostart",
         "New Autostart Entry",
@@ -406,8 +406,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ("tui_delay_prompt", "Delay in seconds:", "Gecikme (saniye):"),
     (
         "tui_delay_keys",
-        "Enter to save, Esc to cancel",
-        "Kaydetmek için Enter, iptal için Esc",
+        "↑/↓: 1s    Enter: save    Esc: cancel",
+        "↑/↓: 1sn    Enter: kaydet    Esc: iptal",
     ),
     (
         "tui_delay_invalid",
@@ -513,8 +513,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_bar_delay",
-        "digits: seconds    Enter: save    Esc: cancel",
-        "rakamlar: saniye    Enter: kaydet    Esc: iptal",
+        "digits or Up/Down: seconds    Enter: save    Esc: cancel",
+        "rakam veya Yukarı/Aşağı: saniye    Enter: kaydet    Esc: iptal",
     ),
     (
         "tui_bar_info",
@@ -633,13 +633,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_help_delay",
-        "  d                set the delay in seconds",
-        "  d                gecikmeyi saniye olarak gir",
-    ),
-    (
-        "tui_help_delay_step",
-        "  [ / ]            delay -1s / +1s",
-        "  [ / ]            gecikme -1sn / +1sn",
+        "  d                set the delay (Up/Down steps a second)",
+        "  d                gecikmeyi gir (Yukarı/Aşağı birer saniye)",
     ),
     (
         "tui_help_add_remove",

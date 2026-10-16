@@ -630,6 +630,26 @@ fn typing_replaces_the_prefilled_delay() {
 }
 
 #[test]
+fn arrows_step_the_delay_by_one_second() {
+    let mut app = app_with_services();
+    app.tab = Tab::Autostart;
+    app.handle_key(press(KeyCode::Char('d')));
+
+    app.handle_key(press(KeyCode::Up));
+    assert_eq!(app.delay_input, "1");
+    app.handle_key(press(KeyCode::Up));
+    assert_eq!(app.delay_input, "2");
+    app.handle_key(press(KeyCode::Down));
+    assert_eq!(app.delay_input, "1");
+
+    // Zero is the floor and an empty field counts as zero.
+    for _ in 0..5 {
+        app.handle_key(press(KeyCode::Down));
+    }
+    assert_eq!(app.delay_input, "0");
+}
+
+#[test]
 fn an_empty_delay_is_rejected() {
     let mut app = app_with_services();
     app.tab = Tab::Autostart;

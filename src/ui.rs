@@ -1,17 +1,62 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Style, Stylize};
+use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, Clear, List, ListState, Paragraph, Row, Table, TableState, Tabs, Wrap,
+    Block, Cell, Clear, List, ListState, Paragraph, Row, Table, TableState, Tabs, Wrap,
 };
 
-use crate::app::{App, Overlay, Tab};
+use crate::app::{App, Level, Overlay, Tab};
 use crate::autostart::AutostartEntry;
 use crate::i18n;
 use crate::privilege::Action;
-use crate::system::Service;
+use crate::system::{self, Service};
 use crate::{profiles, service_db};
+
+// --- Theme ---------------------------------------------------------------
+//
+// Only the sixteen named terminal colours are used, never RGB: the interface
+// then follows whatever palette the user's terminal is themed with instead of
+// looking right on exactly one background. Colour is always a second signal,
+// never the only one - every state is also spelled out in words.
+
+/// Titles, headings and the active tab: where the eye should land first.
+const ACCENT: Color = Color::Cyan;
+/// Secondary text: hints, keys, paths and units that are simply turned off.
+const MUTED: Color = Color::DarkGray;
+/// Healthy: active, enabled, safe to leave alone.
+const OK: Color = Color::Green;
+/// Worth a look: suggestions, masked units, work in progress.
+const WARN: Color = Color::Yellow;
+/// Trouble: failed units, errors, services that must stay on.
+const BAD: Color = Color::Red;
+/// Background of the selected row. Combined with `REVERSED`, so the selection
+/// stays visible even on a terminal that ignores colours.
+const SELECTED: Color = Color::Blue;
+
+/// Style for secondary text.
+fn muted() -> Style {
+    Style::new().fg(MUTED)
+}
+
+/// Style for the selected row in a table or list.
+fn highlight() -> Style {
+    Style::new()
+        .fg(SELECTED)
+        .add_modifier(Modifier::REVERSED | Modifier::BOLD)
+}
+
+/// A bordered panel with a coloured title, used for every block in the UI.
+fn panel(key: &str) -> Block<'static> {
+    panel_titled(title(key))
+}
+
+/// A bordered panel whose title is built at runtime (unit or backup names).
+fn panel_titled(title: String) -> Block<'static> {
+    Block::bordered()
+        .title(Line::from(title).style(Style::new().fg(ACCENT).bold()))
+        .border_style(muted())
+}
 
 /// Draw the whole interface for one frame.
 pub fn render(frame: &mut Frame, app: &App) {
@@ -33,9 +78,11 @@ pub fn render(frame: &mut Frame, app: &App) {
 fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
     let titles = Tab::ALL.iter().map(|tab| Line::from(tab.title()));
     let tabs = Tabs::new(titles)
-        .block(Block::bordered().title(" Linux Boot Analyzer "))
+        .block(panel_titled(" Linux Boot Analyzer ".to_string()))
         .select(app.tab.index())
-        .highlight_style(Style::new().bold().underlined());
+        .highlight_style(Style::new().fg(ACCENT).bold().underlined())
+        .divider("│")
+        .style(muted());
 
     frame.render_widget(tabs, area);
 }
@@ -51,19 +98,75 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_analysis(frame: &mut Frame, app: &App, area: Rect) {
-    let content = app.analysis_lines();
-    let lines: Vec<Line> = content
+    let lines: Vec<Line> = app
+        .analysis_lines()
         .iter()
-        .map(|line| Line::from(line.as_str()))
+        .map(|line| analysis_line(line))
         .collect();
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(title("tab_analysis")))
+            .block(panel("tab_analysis"))
             .wrap(Wrap { trim: false })
             .scroll((app.analysis_scroll, 0)),
         area,
     );
+}
+
+/// Colour one line of the plain-text analysis snapshot.
+///
+/// The text itself comes from `App::analysis_lines`, which the report export
+/// also prints, so this only re-styles it: section headings, `Label: value`
+/// pairs and the right-aligned timings of the blame list are recognised, and
+/// anything else is drawn as it is.
+fn analysis_line(line: &str) -> Line<'static> {
+    if line.is_empty() {
+        return Line::default();
+    }
+
+    let headings = [
+        i18n::t("tui_system"),
+        i18n::t("boot_suresi"),
+        i18n::t("startup_optimizasyonu"),
+        i18n::t("tui_slowest_services"),
+    ];
+    if headings.contains(&line) {
+        return Line::from(line.to_string()).style(Style::new().fg(ACCENT).bold());
+    }
+
+    let body = line.trim_start();
+    let pad = " ".repeat(line.len() - body.len());
+
+    if let Some((label, value)) = body.split_once(": ") {
+        // The total boot time is the headline number of the page.
+        let value_style = if label == i18n::t("toplam_boot") {
+            Style::new().fg(WARN).bold()
+        } else {
+            Style::new()
+        };
+        return Line::from(vec![
+            Span::raw(pad),
+            Span::styled(format!("{label}: "), muted()),
+            Span::styled(value.to_string(), value_style),
+        ]);
+    }
+
+    if let Some((time, name)) = body.split_once("  ")
+        && system::parse_duration_seconds(time) > 0.0
+    {
+        return Line::from(vec![
+            Span::raw(pad),
+            Span::styled(format!("{time}  "), time_style(time)),
+            Span::raw(name.to_string()),
+        ]);
+    }
+
+    // The suggestion under a service name is a side note.
+    if pad.len() >= 6 {
+        return Line::from(line.to_string()).style(muted());
+    }
+
+    Line::from(line.to_string())
 }
 
 /// A bordered block title for a translated label.
@@ -74,7 +177,7 @@ fn title(key: &str) -> String {
 fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     let Some(data) = &app.data else {
         frame.render_widget(
-            Paragraph::new(status_text(app)).block(Block::bordered().title(title("tab_services"))),
+            Paragraph::new(status_text(app)).block(panel("tab_services")),
             area,
         );
         return;
@@ -83,7 +186,8 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     if let Err(err) = &data.services {
         frame.render_widget(
             Paragraph::new(err.as_str())
-                .block(Block::bordered().title(title("tab_services")))
+                .style(Style::new().fg(BAD))
+                .block(panel("tab_services"))
                 .wrap(Wrap { trim: true }),
             area,
         );
@@ -110,19 +214,19 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
         i18n::t("time"),
         i18n::t("tui_tip"),
     ])
-    .style(Style::new().bold());
+    .style(Style::new().fg(ACCENT).bold());
     let rows = visible.iter().map(|service| {
-        let tip = service_db::lookup(&service.name)
-            .map(|entry| entry.tip.label())
-            .unwrap_or("-");
         let time = times.get(service.name.as_str()).copied().unwrap_or("-");
-        Row::new([
-            service.name.as_str(),
-            state_label(&service.active),
-            state_label(&service.sub),
-            state_label(&service.enabled),
-            time,
-            tip,
+        Row::new(vec![
+            Cell::from(service.name.as_str()),
+            Cell::from(state_label(&service.active)).style(state_style(&service.active)),
+            Cell::from(state_label(&service.sub)).style(state_style(&service.sub)),
+            Cell::from(state_label(&service.enabled)).style(state_style(&service.enabled)),
+            Cell::from(time).style(time_style(time)),
+            match service_db::lookup(&service.name) {
+                Some(entry) => Cell::from(entry.tip.label()).style(tip_style(entry.tip)),
+                None => Cell::from("-").style(muted()),
+            },
         ])
     });
 
@@ -138,8 +242,8 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
         ],
     )
     .header(header)
-    .block(Block::bordered().title(services_title(app)))
-    .row_highlight_style(Style::new().reversed())
+    .block(panel_titled(services_title(app)))
+    .row_highlight_style(highlight())
     .highlight_symbol("> ");
 
     let mut state = TableState::default().with_selected(app.selected);
@@ -162,57 +266,106 @@ fn services_title(app: &App) -> String {
 }
 
 fn render_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
-    let search = if app.searching || !app.query.is_empty() {
-        format!("/{}", app.query)
-    } else {
-        format!("/ {}", i18n::t("tui_search"))
-    };
-    let line = format!(
-        "f: {}={}   t: {}={}   s: {}={}   {}",
-        i18n::t("tui_status"),
-        app.status_filter.label(),
-        i18n::t("tui_tip_filter"),
-        app.tip_filter.label(),
-        i18n::t("tui_sort"),
-        app.sort.label(),
-        search,
-    );
+    let mut spans = Vec::new();
+    let filters = [
+        ("f", i18n::t("tui_status"), app.status_filter.label()),
+        ("t", i18n::t("tui_tip_filter"), app.tip_filter.label()),
+        ("s", i18n::t("tui_sort"), app.sort.label()),
+    ];
+    for (key, label, value) in filters {
+        spans.push(Span::styled(format!("{key}: "), muted()));
+        spans.push(Span::styled(format!("{label}="), muted()));
+        spans.push(Span::styled(
+            format!("{value}   "),
+            Style::new().fg(ACCENT).bold(),
+        ));
+    }
 
-    frame.render_widget(Paragraph::new(line).style(Style::new().dim()), area);
+    // While the search box has focus the query is what the keys edit.
+    let (search, search_style) = if app.searching || !app.query.is_empty() {
+        (format!("/{}", app.query), Style::new().fg(ACCENT).bold())
+    } else {
+        (format!("/ {}", i18n::t("tui_search")), muted())
+    };
+    spans.push(Span::styled(search, search_style));
+
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 fn render_service_detail(frame: &mut Frame, service: Option<&Service>, area: Rect) {
     let lines = match service {
         Some(service) => match service_db::lookup(&service.name) {
             Some(entry) => vec![
-                Line::from(format!("{} ({})", service.name, entry.tip.label())),
+                Line::from(vec![
+                    Span::styled(service.name.as_str(), Style::new().bold()),
+                    Span::raw(" "),
+                    Span::styled(format!("({})", entry.tip.label()), tip_style(entry.tip)),
+                ]),
                 Line::from(""),
                 Line::from(entry.description()),
-                Line::from(entry.suggestion_text()).dim(),
+                Line::from(entry.suggestion_text()).style(muted()),
             ],
             None => vec![
-                Line::from(service.name.as_str()),
-                Line::from(i18n::t("tui_no_kb_entry")),
+                Line::from(service.name.as_str()).bold(),
+                Line::from(i18n::t("tui_no_kb_entry")).style(muted()),
             ],
         },
-        None => vec![Line::from(i18n::t("tui_no_service_selected"))],
+        None => vec![Line::from(i18n::t("tui_no_service_selected")).style(muted())],
     };
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(title("tui_details")))
+            .block(panel("tui_details"))
             .wrap(Wrap { trim: true }),
         area,
     );
 }
 
+/// Colour for a systemd state word: healthy, transitional, off or broken.
+fn state_style(state: &str) -> Style {
+    match state {
+        "active" | "running" | "enabled" | "enabled-runtime" => Style::new().fg(OK),
+        "activating" | "deactivating" | "reloading" => Style::new().fg(WARN),
+        "failed" => Style::new().fg(BAD).bold(),
+        "masked" => Style::new().fg(WARN),
+        _ => muted(),
+    }
+}
+
+/// Boot times that matter stand out, the rest fade into the background.
+fn time_style(time: &str) -> Style {
+    if system::parse_duration_seconds(time) >= 1.0 {
+        Style::new().fg(WARN)
+    } else {
+        muted()
+    }
+}
+
+/// Colour for the knowledge-base tip of a service.
+fn tip_style(tip: service_db::Tip) -> Style {
+    match tip {
+        service_db::Tip::Critical => Style::new().fg(BAD).bold(),
+        service_db::Tip::Required => Style::new().fg(WARN),
+        service_db::Tip::Suggestion => Style::new().fg(OK),
+    }
+}
+
+/// "`Label`: value" with the label kept quiet.
+fn detail_line(label: &str, value: &str) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(format!("{label}: "), muted()),
+        Span::raw(value.to_string()),
+    ])
+}
+
 fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
     let entries = app.autostart_entries();
-    let block = Block::bordered().title(title("tab_autostart"));
+    let block = panel("tab_autostart");
 
     if entries.is_empty() {
         frame.render_widget(
             Paragraph::new(i18n::t("no_autostart_apps"))
+                .style(muted())
                 .block(block)
                 .wrap(Wrap { trim: true }),
             area,
@@ -228,11 +381,11 @@ fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
         .map(|entry| entry.delay.to_string())
         .collect();
     let rows = entries.iter().enumerate().map(|(index, entry)| {
-        Row::new([
-            entry.name.as_str(),
-            enabled_label(entry.enabled),
-            delays[index].as_str(),
-            entry.exec.as_str(),
+        Row::new(vec![
+            Cell::from(entry.name.as_str()),
+            Cell::from(enabled_label(entry.enabled)).style(enabled_style(entry.enabled)),
+            Cell::from(delays[index].as_str()).style(delay_style(entry.delay)),
+            Cell::from(entry.exec.as_str()).style(muted()),
         ])
     });
 
@@ -242,7 +395,7 @@ fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
         i18n::t("delay"),
         i18n::t("komut"),
     ])
-    .style(Style::new().bold());
+    .style(Style::new().fg(ACCENT).bold());
     let table = Table::new(
         rows,
         [
@@ -254,7 +407,7 @@ fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
     )
     .header(header)
     .block(block)
-    .row_highlight_style(Style::new().reversed())
+    .row_highlight_style(highlight())
     .highlight_symbol("> ");
 
     let mut state = TableState::default().with_selected(app.autostart_selected);
@@ -266,23 +419,23 @@ fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
 fn render_autostart_detail(frame: &mut Frame, entry: Option<&AutostartEntry>, area: Rect) {
     let lines = match entry {
         Some(entry) => vec![
-            Line::from(entry.name.as_str()),
-            Line::from(format!("{} {}", i18n::t("komut"), entry.exec)),
-            Line::from(format!(
-                "{}: {}s    {}: {}",
-                i18n::t("delay"),
-                entry.delay,
-                i18n::t("state"),
-                enabled_label(entry.enabled)
-            )),
-            Line::from(format!("{} {}", i18n::t("tui_file"), entry.path.display())),
+            Line::from(entry.name.as_str()).bold(),
+            detail_line(i18n::t("komut"), &entry.exec),
+            Line::from(vec![
+                Span::styled(format!("{}: ", i18n::t("delay")), muted()),
+                Span::styled(format!("{}s", entry.delay), delay_style(entry.delay)),
+                Span::raw("    "),
+                Span::styled(format!("{}: ", i18n::t("state")), muted()),
+                Span::styled(enabled_label(entry.enabled), enabled_style(entry.enabled)),
+            ]),
+            detail_line(i18n::t("tui_file"), &entry.path.display().to_string()),
         ],
-        None => vec![Line::from(i18n::t("tui_no_entry_selected"))],
+        None => vec![Line::from(i18n::t("tui_no_entry_selected")).style(muted())],
     };
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(title("tui_details")))
+            .block(panel("tui_details"))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -294,6 +447,23 @@ fn enabled_label(enabled: bool) -> &'static str {
         i18n::t("tui_enabled")
     } else {
         i18n::t("tui_disabled")
+    }
+}
+
+fn enabled_style(enabled: bool) -> Style {
+    if enabled {
+        Style::new().fg(OK)
+    } else {
+        muted()
+    }
+}
+
+/// A pinned delay is a configured value worth noticing; zero stays quiet.
+fn delay_style(delay: u32) -> Style {
+    if delay > 0 {
+        Style::new().fg(ACCENT)
+    } else {
+        muted()
     }
 }
 
@@ -346,10 +516,10 @@ fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     let rows = ids.iter().enumerate().map(|(index, _)| {
-        Row::new([
-            names[index],
-            counts[index].0.as_str(),
-            counts[index].1.as_str(),
+        Row::new(vec![
+            Cell::from(names[index]),
+            Cell::from(counts[index].0.as_str()).style(Style::new().fg(OK)),
+            Cell::from(counts[index].1.as_str()).style(Style::new().fg(WARN)),
         ])
     });
 
@@ -367,10 +537,10 @@ fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
             i18n::t("tui_enable_count"),
             i18n::t("tui_disable_count"),
         ])
-        .style(Style::new().bold()),
+        .style(Style::new().fg(ACCENT).bold()),
     )
-    .block(Block::bordered().title(title("profiller_title")))
-    .row_highlight_style(Style::new().reversed())
+    .block(panel("profiller_title"))
+    .row_highlight_style(highlight())
     .highlight_symbol("> ");
 
     let mut state = TableState::default().with_selected(Some(app.profiles_selected));
@@ -384,17 +554,20 @@ fn render_backup_list(frame: &mut Frame, app: &App, area: Rect) {
         .map(|backup| backup.services.len().to_string())
         .collect();
 
-    let rows = backups
-        .iter()
-        .enumerate()
-        .map(|(index, backup)| Row::new([backup.name.as_str(), counts[index].as_str()]));
+    let rows = backups.iter().enumerate().map(|(index, backup)| {
+        Row::new(vec![
+            Cell::from(backup.name.as_str()),
+            Cell::from(counts[index].as_str()).style(muted()),
+        ])
+    });
 
     let table = Table::new(rows, [Constraint::Min(20), Constraint::Length(12)])
         .header(
-            Row::new([i18n::t("tui_backup"), i18n::t("tui_services")]).style(Style::new().bold()),
+            Row::new([i18n::t("tui_backup"), i18n::t("tui_services")])
+                .style(Style::new().fg(ACCENT).bold()),
         )
-        .block(Block::bordered().title(title("backup_noktalari")))
-        .row_highlight_style(Style::new().reversed())
+        .block(panel("backup_noktalari"))
+        .row_highlight_style(highlight())
         .highlight_symbol("> ");
 
     let mut state = TableState::default().with_selected(Some(app.backups_selected));
@@ -409,19 +582,20 @@ fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
             let description = profile.map_or("", |profile| profile.description());
 
             let mut lines = vec![
-                Line::from(i18n::fill(i18n::t("tui_profile_label"), &[name])),
-                Line::from(description),
+                Line::from(i18n::fill(i18n::t("tui_profile_label"), &[name])).bold(),
+                Line::from(description).style(muted()),
                 Line::from(""),
-                Line::from(savings_line(app.profile_savings(id))),
+                Line::from(savings_line(app.profile_savings(id)))
+                    .style(savings_style(app.profile_savings(id))),
                 Line::from(""),
             ];
 
             // The same ✔/✘ list the profile cards show in the GTK application.
             for (enable, label) in profiles::checklist(id) {
                 let (mark, style) = if enable {
-                    ("✔", Style::new().green())
+                    ("✔", Style::new().fg(OK).bold())
                 } else {
-                    ("✘", Style::new().red())
+                    ("✘", Style::new().fg(BAD).bold())
                 };
                 lines.push(Line::from(vec![
                     Span::styled(mark, style),
@@ -430,12 +604,12 @@ fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
             }
             lines
         }
-        None => vec![Line::from(i18n::t("tui_no_profile_selected"))],
+        None => vec![Line::from(i18n::t("tui_no_profile_selected")).style(muted())],
     };
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(title("tui_details")))
+            .block(panel("tui_details"))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -444,24 +618,29 @@ fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
 fn render_backup_detail(frame: &mut Frame, app: &App, area: Rect) {
     let lines = match app.selected_backup() {
         Some(backup) => vec![
-            Line::from(backup.name.as_str()),
-            Line::from(i18n::fill(i18n::t("tui_saved"), &[&backup.timestamp])),
-            Line::from(format!(
-                "{}: {}",
-                i18n::t("tui_services"),
-                backup.services.len()
-            )),
-            Line::from(format!("{} {}", i18n::t("tui_file"), backup.path.display())),
+            Line::from(backup.name.as_str()).bold(),
+            Line::from(i18n::fill(i18n::t("tui_saved"), &[&backup.timestamp])).style(muted()),
+            detail_line(i18n::t("tui_services"), &backup.services.len().to_string()),
+            detail_line(i18n::t("tui_file"), &backup.path.display().to_string()),
         ],
-        None => vec![Line::from(i18n::t("tui_create_backup_hint"))],
+        None => vec![Line::from(i18n::t("tui_create_backup_hint")).style(muted())],
     };
 
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(title("tui_details")))
+            .block(panel("tui_details"))
             .wrap(Wrap { trim: true }),
         area,
     );
+}
+
+/// Estimated savings read green when there is something to win.
+fn savings_style(seconds: f64) -> Style {
+    if seconds > 0.05 {
+        Style::new().fg(OK).bold()
+    } else {
+        muted()
+    }
 }
 
 /// `"Estimated Savings: ~1.5s"`, or `< 0.1s` when it is negligible.
@@ -477,19 +656,23 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
     let [keys, status] =
         Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(area);
 
-    frame.render_widget(
-        Paragraph::new(action_hints(app)).style(Style::new().dim()),
-        keys,
-    );
+    frame.render_widget(Paragraph::new(action_hints(app)).style(muted()), keys);
 
     // The status line shows the latest command result when there is one.
-    let status_text: &str = match (&app.message, app.running) {
-        (Some(message), _) => message,
-        (None, true) => i18n::t("tui_running"),
-        (None, false) => i18n::t("tui_bar_global"),
+    let (status_text, style) = match (&app.message, app.running) {
+        (Some(message), _) => (
+            message.as_str(),
+            match app.level {
+                Level::Success => Style::new().fg(OK),
+                Level::Error => Style::new().fg(BAD).bold(),
+                Level::Info => Style::new(),
+            },
+        ),
+        (None, true) => (i18n::t("tui_running"), Style::new().fg(WARN)),
+        (None, false) => (i18n::t("tui_bar_global"), muted()),
     };
 
-    frame.render_widget(Paragraph::new(status_text), status);
+    frame.render_widget(Paragraph::new(status_text).style(style), status);
 }
 
 /// The keys that do something right now, so actions are discoverable.
@@ -538,8 +721,8 @@ fn render_action_menu(frame: &mut Frame, app: &App) {
 
     let items = Action::ALL.iter().map(|action| Line::from(action.label()));
     let list = List::new(items)
-        .block(Block::bordered().title(format!(" {unit} ")))
-        .highlight_style(Style::new().reversed())
+        .block(panel_titled(format!(" {unit} ")))
+        .highlight_style(highlight())
         .highlight_symbol("> ");
 
     let mut state = ListState::default().with_selected(Some(app.menu_index));
@@ -561,7 +744,7 @@ fn render_confirm(frame: &mut Frame, app: &App) {
     let area = centered_rect(width, height, frame.area());
     frame.render_widget(Clear, area);
 
-    let block = Block::bordered().title(title("tui_confirm"));
+    let block = panel("tui_confirm");
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -576,14 +759,11 @@ fn render_confirm(frame: &mut Frame, app: &App) {
         Paragraph::new(prompt).wrap(Wrap { trim: true }),
         prompt_area,
     );
-    frame.render_widget(Paragraph::new(keys).dim(), keys_area);
+    frame.render_widget(Paragraph::new(keys).style(muted()), keys_area);
 }
 
 fn render_form(frame: &mut Frame, app: &App) {
     let labels = [i18n::t("tui_name"), i18n::t("komut")];
-
-    let area = centered_rect(60, labels.len() as u16 + 4, frame.area());
-    frame.render_widget(Clear, area);
 
     let mut lines = Vec::new();
     for (index, label) in labels.iter().enumerate() {
@@ -592,11 +772,13 @@ fn render_form(frame: &mut Frame, app: &App) {
         lines.push(Line::from(format!("{marker} {label}: {value}")));
     }
     lines.push(Line::from(""));
-    lines.push(Line::from(i18n::t("tui_bar_form")).dim());
+    lines.push(Line::from(i18n::t("tui_bar_form")).style(muted()));
 
+    let area = centered_rect(60, dialog_height(&lines, 60), frame.area());
+    frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(lines)
-            .block(Block::bordered().title(title("tui_new_autostart")))
+            .block(panel("tui_new_autostart"))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -604,38 +786,36 @@ fn render_form(frame: &mut Frame, app: &App) {
 
 fn render_password(frame: &mut Frame, app: &App) {
     let masked = "*".repeat(app.password_input.chars().count());
-    let text = vec![
+    let lines = vec![
         Line::from(i18n::t("tui_sudo_password")),
-        Line::from(masked),
+        Line::from(masked).bold(),
         Line::from(""),
-        Line::from(i18n::t("tui_password_keys")).dim(),
+        Line::from(i18n::t("tui_password_keys")).style(muted()),
     ];
 
-    // One row per line plus the two border rows, so the hint always fits.
-    let area = centered_rect(40, text.len() as u16 + 2, frame.area());
+    let area = centered_rect(40, dialog_height(&lines, 40), frame.area());
     frame.render_widget(Clear, area);
     frame.render_widget(
-        Paragraph::new(text)
-            .block(Block::bordered().title(title("tui_authentication")))
+        Paragraph::new(lines)
+            .block(panel("tui_authentication"))
             .wrap(Wrap { trim: true }),
         area,
     );
 }
 
 fn render_delay(frame: &mut Frame, app: &App) {
-    let text = vec![
+    let lines = vec![
         Line::from(i18n::t("tui_delay_prompt")),
         Line::from(format!("{}s", app.delay_input)).bold(),
         Line::from(""),
-        Line::from(i18n::t("tui_delay_keys")).dim(),
+        Line::from(i18n::t("tui_delay_keys")).style(muted()),
     ];
 
-    // One row per line plus the two border rows, so the hint always fits.
-    let area = centered_rect(40, text.len() as u16 + 2, frame.area());
+    let area = centered_rect(40, dialog_height(&lines, 40), frame.area());
     frame.render_widget(Clear, area);
     frame.render_widget(
-        Paragraph::new(text)
-            .block(Block::bordered().title(title("delay")))
+        Paragraph::new(lines)
+            .block(panel("delay"))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -660,15 +840,41 @@ fn render_info(frame: &mut Frame, app: &App) {
         .map(|line| Line::from(line.as_str()))
         .collect();
     let paragraph = Paragraph::new(text)
-        .block(Block::bordered().title(format!(" {} — {} ", info.title, i18n::t("tui_info_hint"))))
+        .block(panel_titled(format!(
+            " {} — {} ",
+            info.title,
+            i18n::t("tui_info_hint")
+        )))
         .scroll((info.scroll, 0))
         .wrap(Wrap { trim: false });
 
     frame.render_widget(paragraph, area);
 }
 
-/// A rectangle of the given size, centred inside `area`.
+/// Plain text of a styled line, used to measure it.
+fn line_text(line: &Line) -> String {
+    line.spans
+        .iter()
+        .map(|span| span.content.as_ref())
+        .collect()
+}
+
+/// Height a bordered dialog needs to draw `lines` at `width` without clipping
+/// any of them, two border rows included.
+fn dialog_height(lines: &[Line], width: u16) -> u16 {
+    let inner = width.saturating_sub(2).max(1) as usize;
+    let rows: usize = lines
+        .iter()
+        .map(|line| wrapped_rows(&line_text(line), inner))
+        .sum();
+    rows as u16 + 2
+}
+
 /// How many rows `text` needs when wrapped into `width` columns.
+///
+/// The greedy word wrap `Paragraph` draws with `Wrap { trim: true }`: text
+/// breaks at whitespace, runs of spaces stay inside a row (they are not
+/// collapsed), and a word wider than a whole row is split.
 fn wrapped_rows(text: &str, width: usize) -> usize {
     if width == 0 {
         return 1;
@@ -676,27 +882,37 @@ fn wrapped_rows(text: &str, width: usize) -> usize {
 
     let mut rows = 1;
     let mut column = 0;
+    let mut gap = 0;
 
-    for word in text.split_whitespace() {
-        let length = word.chars().count();
+    for part in text.split(' ') {
+        if part.is_empty() {
+            gap += 1;
+            continue;
+        }
+
+        let length = part.chars().count();
         if column == 0 {
             column = length;
-        } else if column + length < width {
-            column += length + 1;
+        } else if column + gap + length <= width {
+            column += gap + length;
         } else {
             rows += 1;
             column = length;
         }
-        // A single word can still be wider than the whole line.
+
+        // A single word can still be wider than the whole row.
         while column > width {
             rows += 1;
             column -= width;
         }
+
+        gap = 1;
     }
 
     rows
 }
 
+/// A rectangle of the given size, centred inside `area`.
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     let width = width.min(area.width);
     let height = height.min(area.height);

@@ -208,6 +208,9 @@ fn the_confirmation_dialog_counts_wrapped_rows() {
     assert_eq!(wrapped_rows("a question that does not fit", 10), 3);
     assert_eq!(wrapped_rows("unbreakablesupercalifragilistic", 5), 7);
     assert_eq!(wrapped_rows("anything", 0), 1);
+    // Runs of spaces are kept, so they count towards the row width.
+    assert_eq!(wrapped_rows("ab    cd", 8), 1);
+    assert_eq!(wrapped_rows("ab    cd", 7), 2);
 }
 
 #[test]
@@ -230,7 +233,10 @@ fn the_delay_dialog_shows_the_value_and_the_key_hint() {
     let text = render_to_string(&app, 80, 24);
     assert!(text.contains("Delay in seconds:"), "{text}");
     assert!(text.contains("5s"), "{text}");
-    assert!(text.contains("Enter to save"), "{text}");
+    assert!(
+        text.contains("↑/↓: 1s    Enter: save    Esc: cancel"),
+        "{text}"
+    );
 }
 
 #[test]

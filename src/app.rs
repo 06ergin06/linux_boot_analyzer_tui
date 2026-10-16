@@ -53,6 +53,17 @@ impl Tab {
     }
 }
 
+/// How the status line presents the latest message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Level {
+    /// Plain information, such as a hint about the selected unit.
+    Info,
+    /// An operation that finished successfully.
+    Success,
+    /// A failure the user should notice.
+    Error,
+}
+
 /// A modal presented on top of the current tab.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Overlay {
@@ -172,6 +183,8 @@ pub struct App {
     pub delay_replace: bool,
     /// Latest command result, shown in the status line.
     pub message: Option<String>,
+    /// How the status line should colour that message.
+    pub level: Level,
     /// Whether a privileged command is currently running.
     pub running: bool,
     /// Journal/dependency text pane, when open.
@@ -216,6 +229,7 @@ impl App {
             delay_input: String::new(),
             delay_replace: false,
             message: None,
+            level: Level::Info,
             running: false,
             info: None,
             clipboard: None,
@@ -238,16 +252,31 @@ impl App {
         }
     }
 
+    /// Show a message in the status line, tagged with how it should read.
+    fn notify(&mut self, text: String, level: Level) {
+        self.message = Some(text);
+        self.level = level;
+    }
+
+    /// Clear the status line before starting new work.
+    fn clear_message(&mut self) {
+        self.message = None;
+        self.level = Level::Info;
+    }
+
     /// Take the result of a background task, if one finished.
     pub fn poll_command(&mut self) {
         match self.command_rx.try_recv() {
             Ok(CommandOutcome::Message(Ok(output))) => {
                 self.running = false;
-                self.message = Some(if output.is_empty() {
-                    i18n::t("tui_done").to_string()
-                } else {
-                    output
-                });
+                self.notify(
+                    if output.is_empty() {
+                        i18n::t("tui_done").to_string()
+                    } else {
+                        output
+                    },
+                    Level::Success,
+                );
                 // The unit states changed, so refresh the snapshot.
                 self.reload_requested = true;
             }
@@ -256,7 +285,7 @@ impl App {
                 if privilege::is_auth_failure(&error) {
                     self.password = None;
                 }
-                self.message = Some(error);
+                self.notify(error, Level::Error);
             }
             Ok(CommandOutcome::Info { title, lines }) => {
                 self.running = false;
@@ -624,14 +653,19 @@ impl App {
 
         let path = report_path();
         let report = self.report();
-        self.message = Some(match std::fs::write(&path, &report) {
+        let written = std::fs::write(&path, &report);
+        match written {
             Ok(()) => {
                 // The main loop turns this into an OSC 52 escape sequence.
                 self.clipboard = Some(report);
-                i18n::fill(i18n::t("tui_report_copied"), &[&path])
+                let text = i18n::fill(i18n::t("tui_report_copied"), &[&path]);
+                self.notify(text, Level::Success);
             }
-            Err(err) => i18n::fill(i18n::t("tui_report_failed"), &[&path, &err.to_string()]),
-        });
+            Err(err) => {
+                let text = i18n::fill(i18n::t("tui_report_failed"), &[&path, &err.to_string()]);
+                self.notify(text, Level::Error);
+            }
+        }
     }
 
     /// The loaded services, if any.
@@ -722,8 +756,6 @@ impl App {
             KeyCode::Char(' ') => self.toggle_autostart(),
             KeyCode::Char('n') => self.begin_add_form(),
             KeyCode::Char('x') => self.remove_selected(),
-            KeyCode::Char('[') => self.adjust_autostart_delay(-1),
-            KeyCode::Char(']') => self.adjust_autostart_delay(1),
             KeyCode::Char('r') => self.reload_requested = true,
             KeyCode::Char('l') => self.show_journal(),
             KeyCode::Char('d') => self.secondary_action(),
@@ -768,7 +800,7 @@ impl App {
         let password = self.password.clone();
         let sender = self.command_tx.clone();
         self.running = true;
-        self.message = None;
+        self.clear_message();
         thread::spawn(move || {
             let text = system::journal(&unit, 200, password.as_deref());
             let _ = sender.send(CommandOutcome::Info {
@@ -789,7 +821,7 @@ impl App {
 
         let sender = self.command_tx.clone();
         self.running = true;
-        self.message = None;
+        self.clear_message();
         thread::spawn(move || {
             let text = system::dependencies(&unit, reverse).unwrap_or_else(|err| err);
             let key = if reverse {
@@ -856,7 +888,10 @@ impl App {
         }
         // The original application disables the buttons for device units.
         if !self.view.is_manageable() {
-            self.message = Some(i18n::t("tui_device_not_manageable").to_string());
+            self.notify(
+                i18n::t("tui_device_not_manageable").to_string(),
+                Level::Info,
+            );
             return;
         }
         self.menu_index = 0;
@@ -883,7 +918,7 @@ impl App {
             .map(|item| item.name.clone())
             .collect();
         if units.is_empty() {
-            self.message = Some(i18n::t("tui_nothing_to_optimize").to_string());
+            self.notify(i18n::t("tui_nothing_to_optimize").to_string(), Level::Info);
             return;
         }
         self.pending = Some(Pending::Bulk(units));
@@ -914,7 +949,7 @@ impl App {
     fn spawn_pending(&mut self, pending: Pending, password: String) {
         let sender = self.command_tx.clone();
         self.running = true;
-        self.message = None;
+        self.clear_message();
         thread::spawn(move || {
             let result = match pending {
                 Pending::Action(action, unit) => privilege::systemctl(action, &unit, &password),
@@ -956,21 +991,6 @@ impl App {
         self.finish_local(result);
     }
 
-    fn adjust_autostart_delay(&mut self, delta: i32) {
-        if self.tab != Tab::Autostart {
-            return;
-        }
-        let Some(entry) = self.selected_autostart() else {
-            return;
-        };
-        let delay = (entry.delay as i32 + delta).clamp(0, MAX_DELAY as i32) as u32;
-        if delay == entry.delay {
-            return;
-        }
-        let result = autostart::set_delay(entry, delay);
-        self.finish_local(result);
-    }
-
     /// d: type a start delay instead of stepping one second at a time.
     fn begin_delay_edit(&mut self) {
         if self.tab != Tab::Autostart {
@@ -989,6 +1009,8 @@ impl App {
         match key.code {
             KeyCode::Enter => self.save_autostart_delay(),
             KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Up => self.step_delay(1),
+            KeyCode::Down => self.step_delay(-1),
             KeyCode::Backspace => {
                 self.delay_replace = false;
                 self.delay_input.pop();
@@ -1004,6 +1026,15 @@ impl App {
         }
     }
 
+    /// Up/Down in the delay prompt nudge the value by one second, and an empty
+    /// or invalid field counts as zero so the arrows always recover.
+    fn step_delay(&mut self, delta: i32) {
+        let current = self.delay_input.trim().parse::<u32>().unwrap_or(0);
+        let next = (current as i32 + delta).clamp(0, MAX_DELAY as i32) as u32;
+        self.delay_input = next.to_string();
+        self.delay_replace = false;
+    }
+
     /// Write the typed delay, keeping the prompt open while it is not a number.
     fn save_autostart_delay(&mut self) {
         let Some(entry) = self.selected_autostart() else {
@@ -1011,7 +1042,7 @@ impl App {
             return;
         };
         let Some(delay) = parse_delay(&self.delay_input) else {
-            self.message = Some(i18n::t("tui_delay_invalid").to_string());
+            self.notify(i18n::t("tui_delay_invalid").to_string(), Level::Error);
             return;
         };
         let result = autostart::set_delay(entry, delay);
@@ -1071,11 +1102,11 @@ impl App {
         self.overlay = Overlay::None;
 
         if name.trim().is_empty() {
-            self.message = Some(i18n::t("tui_name_required").to_string());
+            self.notify(i18n::t("tui_name_required").to_string(), Level::Error);
             return;
         }
         if command.trim().is_empty() {
-            self.message = Some(i18n::t("tui_command_required").to_string());
+            self.notify(i18n::t("tui_command_required").to_string(), Level::Error);
             return;
         }
 
@@ -1086,10 +1117,10 @@ impl App {
     fn finish_local(&mut self, result: Result<(), String>) {
         match result {
             Ok(()) => {
-                self.message = Some(i18n::t("tui_autostart_updated").to_string());
+                self.notify(i18n::t("tui_autostart_updated").to_string(), Level::Success);
                 self.reload_requested = true;
             }
-            Err(error) => self.message = Some(error),
+            Err(error) => self.notify(error, Level::Error),
         }
     }
 
@@ -1170,7 +1201,7 @@ impl App {
         let (enable, disable) = profiles::selections(profile_id);
         let plan = self.build_plan(&enable, &disable);
         if plan.is_empty() {
-            self.message = Some(i18n::t("tui_profile_matches").to_string());
+            self.notify(i18n::t("tui_profile_matches").to_string(), Level::Info);
             return;
         }
 
@@ -1203,7 +1234,7 @@ impl App {
 
         let plan = self.build_plan(&enable, &disable);
         if plan.is_empty() {
-            self.message = Some(i18n::t("tui_backup_matches").to_string());
+            self.notify(i18n::t("tui_backup_matches").to_string(), Level::Info);
             return;
         }
 
@@ -1253,7 +1284,6 @@ impl App {
             "tui_help_autostart",
             "tui_help_toggle",
             "tui_help_delay",
-            "tui_help_delay_step",
             "tui_help_add_remove",
             "",
             "tui_help_profiles",
@@ -1285,10 +1315,8 @@ impl App {
     /// L: switch between English and Turkish, and remember the choice.
     fn toggle_language(&mut self) {
         let lang = i18n::toggle();
-        self.message = Some(i18n::fill(
-            i18n::t("tui_language_set"),
-            &[lang.native_name()],
-        ));
+        let text = i18n::fill(i18n::t("tui_language_set"), &[lang.native_name()]);
+        self.notify(text, Level::Info);
     }
 
     fn select_next_tab(&mut self) {
