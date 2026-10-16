@@ -81,9 +81,9 @@ fn render_boot(frame: &mut Frame, app: &App, area: Rect) {
         Some(data) => match &data.boot {
             Ok(boot) => vec![
                 Line::from(format!("Total: {}", boot.total)),
-                Line::from(boot.detail.clone()).dim(),
+                Line::from(boot.detail.as_str()).dim(),
             ],
-            Err(err) => vec![Line::from(err.clone())],
+            Err(err) => vec![Line::from(err.as_str())],
         },
         None => vec![Line::from(status_text(app))],
     };
@@ -104,7 +104,7 @@ fn render_blame(frame: &mut Frame, app: &App, area: Rect) {
                 .take(20)
                 .map(|entry| Line::from(format!("{:>10}  {}", entry.time, entry.name)))
                 .collect(),
-            Err(err) => vec![Line::from(err.clone())],
+            Err(err) => vec![Line::from(err.as_str())],
         },
         None => vec![Line::from(status_text(app))],
     };
@@ -126,7 +126,7 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
         Ok(services) => services,
         Err(err) => {
             frame.render_widget(
-                Paragraph::new(err.clone())
+                Paragraph::new(err.as_str())
                     .block(block)
                     .wrap(Wrap { trim: true }),
                 area,
@@ -141,10 +141,10 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
             .map(|entry| entry.tip.label())
             .unwrap_or("-");
         Row::new([
-            service.name.clone(),
-            service.active.clone(),
-            service.enabled.clone(),
-            tip.to_string(),
+            service.name.as_str(),
+            service.active.as_str(),
+            service.enabled.as_str(),
+            tip,
         ])
     });
 
@@ -177,11 +177,11 @@ fn render_service_detail(frame: &mut Frame, service: Option<&Service>, area: Rec
             Some(entry) => vec![
                 Line::from(format!("{} ({})", service.name, entry.tip.label())),
                 Line::from(""),
-                Line::from(entry.desc.clone()),
-                Line::from(entry.suggestion.clone()).dim(),
+                Line::from(entry.desc.as_str()),
+                Line::from(entry.suggestion.as_str()).dim(),
             ],
             None => vec![
-                Line::from(service.name.clone()),
+                Line::from(service.name.as_str()),
                 Line::from("No knowledge-base entry for this service."),
             ],
         },

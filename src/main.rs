@@ -34,10 +34,10 @@ fn main() -> io::Result<()> {
             app.poll_data(&receiver);
             terminal.draw(|frame| ui::render(frame, &app))?;
 
-            if event::poll(EVENT_POLL)? {
-                if let Event::Key(key) = event::read()? {
-                    app.handle_key(key);
-                }
+            if event::poll(EVENT_POLL)?
+                && let Event::Key(key) = event::read()?
+            {
+                app.handle_key(key);
             }
         }
 

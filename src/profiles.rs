@@ -24,7 +24,7 @@ pub struct Profile {
 }
 
 /// The whole `profiles_data.json` file.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct ProfilesData {
     pub profiles: HashMap<String, Profile>,
     #[allow(dead_code)]
@@ -36,7 +36,8 @@ pub struct ProfilesData {
 }
 
 static DATA: LazyLock<ProfilesData> = LazyLock::new(|| {
-    serde_json::from_str(PROFILES_JSON).expect("embedded profiles_data.json is valid")
+    // Embedded at build time; fall back to an empty default instead of panicking.
+    serde_json::from_str(PROFILES_JSON).unwrap_or_default()
 });
 
 pub fn data() -> &'static ProfilesData {

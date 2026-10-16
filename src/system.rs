@@ -3,7 +3,7 @@
 //! Ported from the Python project's `system_manager.py`. Commands run with
 //! `LC_ALL=C` so that output and our parsing stay stable across locales.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 
@@ -141,7 +141,7 @@ pub fn services() -> Result<Vec<Service>, String> {
     )
     .unwrap_or_default();
 
-    Ok(merge_services(&units, &parse_unit_file_states(&files)))
+    Ok(merge_services(&units, parse_unit_file_states(&files)))
 }
 
 fn parse_units(output: &str) -> Vec<(String, String, String, String)> {
@@ -173,16 +173,14 @@ fn parse_unit_file_states(output: &str) -> HashMap<String, String> {
         .collect()
 }
 
-fn merge_services(units: &str, file_states: &HashMap<String, String>) -> Vec<Service> {
+fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<Service> {
     let mut services = Vec::new();
-    let mut seen = HashSet::new();
 
     for (name, active, sub, description) in parse_units(units) {
+        // Consuming the state here keeps file-only entries in the map below.
         let enabled = file_states
-            .get(&name)
-            .cloned()
+            .remove(&name)
             .unwrap_or_else(|| "unknown".to_string());
-        seen.insert(name.clone());
         services.push(Service {
             name,
             active,
@@ -194,15 +192,15 @@ fn merge_services(units: &str, file_states: &HashMap<String, String>) -> Vec<Ser
 
     for (name, state) in file_states {
         // Template units are never instantiated, so skip them.
-        if seen.contains(name) || name.contains('@') {
+        if name.contains('@') {
             continue;
         }
         services.push(Service {
-            name: name.clone(),
+            name,
             active: "inactive".to_string(),
             sub: "dead".to_string(),
             description: String::new(),
-            enabled: state.clone(),
+            enabled: state,
         });
     }
 
@@ -248,14 +246,13 @@ fn read_ram() -> String {
         return "Unknown".to_string();
     };
     for line in contents.lines() {
-        if let Some(rest) = line.strip_prefix("MemTotal:") {
-            if let Some(kb) = rest
+        if let Some(rest) = line.strip_prefix("MemTotal:")
+            && let Some(kb) = rest
                 .split_whitespace()
                 .next()
                 .and_then(|v| v.parse::<u64>().ok())
-            {
-                return format!("{:.1} GB", kb as f64 / 1024.0 / 1024.0);
-            }
+        {
+            return format!("{:.1} GB", kb as f64 / 1024.0 / 1024.0);
         }
     }
     "Unknown".to_string()
@@ -328,7 +325,7 @@ mod tests {
         files.insert("sshd.service".to_string(), "enabled".to_string());
         files.insert("cups.service".to_string(), "disabled".to_string());
 
-        let services = merge_services(units, &files);
+        let services = merge_services(units, files);
 
         assert_eq!(services.len(), 2);
         assert_eq!(services[0].name, "cups.service");

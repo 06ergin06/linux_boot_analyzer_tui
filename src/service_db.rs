@@ -50,16 +50,17 @@ pub struct ServiceEntry {
 }
 
 static ENTRIES: LazyLock<HashMap<String, ServiceEntry>> = LazyLock::new(|| {
-    serde_json::from_str(SERVICES_JSON).expect("embedded services_data.json is valid")
+    // Embedded at build time; fall back to an empty map instead of panicking.
+    serde_json::from_str(SERVICES_JSON).unwrap_or_default()
 });
 
-/// Maps a template base (`getty@`) to its template entry key (`getty@.service`).
-static TEMPLATES: LazyLock<HashMap<String, String>> = LazyLock::new(|| {
+/// Maps a template prefix (`getty`) to its template entry key (`getty@.service`).
+static TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     ENTRIES
         .keys()
         .filter_map(|key| {
             let (prefix, _) = key.split_once('@')?;
-            Some((format!("{prefix}@"), key.clone()))
+            Some((prefix, key.as_str()))
         })
         .collect()
 });
@@ -74,7 +75,7 @@ pub fn lookup(name: &str) -> Option<&'static ServiceEntry> {
     }
 
     let (prefix, _) = name.split_once('@')?;
-    let template = TEMPLATES.get(&format!("{prefix}@"))?;
+    let template = *TEMPLATES.get(prefix)?;
     ENTRIES.get(template)
 }
 
