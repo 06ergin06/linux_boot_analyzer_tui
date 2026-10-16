@@ -601,9 +601,6 @@ fn render_form(frame: &mut Frame, app: &App) {
 }
 
 fn render_password(frame: &mut Frame, app: &App) {
-    let area = centered_rect(40, 5, frame.area());
-    frame.render_widget(Clear, area);
-
     let masked = "*".repeat(app.password_input.chars().count());
     let text = vec![
         Line::from(i18n::t("tui_sudo_password")),
@@ -611,6 +608,10 @@ fn render_password(frame: &mut Frame, app: &App) {
         Line::from(""),
         Line::from(i18n::t("tui_password_keys")).dim(),
     ];
+
+    // One row per line plus the two border rows, so the hint always fits.
+    let area = centered_rect(40, text.len() as u16 + 2, frame.area());
+    frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(text)
             .block(Block::bordered().title(title("tui_authentication")))
