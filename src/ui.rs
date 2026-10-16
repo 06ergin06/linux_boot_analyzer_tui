@@ -368,7 +368,7 @@ fn join_or_dash(names: &[String]) -> String {
 }
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
-    const HINTS: &str = "q: quit   Enter/a: action   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter   o: optimize   w: report   l: log   d: deps/restore   b: backup   v: view   x: remove   space: toggle";
+    const HINTS: &str = "q: quit   ?: help   Enter/a: action   Left/Right: tab   Up/Down: move   /: search   f/t/s: filter   o: optimize   w: report   r: reload";
 
     // The status line shows the latest command result when there is one.
     let text: &str = match &app.message {
@@ -642,5 +642,13 @@ mod tests {
         let text = render_to_string(&app, 110, 24);
         assert!(text.contains("minimum"));
         assert!(text.contains("Restore Points"));
+    }
+
+    #[test]
+    fn tiny_terminals_do_not_panic() {
+        for (width, height) in [(20, 6), (10, 4), (1, 1)] {
+            let app = loaded_app(Tab::Services);
+            let _ = render_to_string(&app, width, height);
+        }
     }
 }

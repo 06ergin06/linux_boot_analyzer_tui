@@ -626,6 +626,7 @@ impl App {
             }
             KeyCode::Char('o') => self.begin_quick_optimize(),
             KeyCode::Char('w') => self.export_report(),
+            KeyCode::Char('?') => self.open_help(),
             KeyCode::Char('b') => self.begin_create_backup(),
             KeyCode::Char('v') => self.toggle_profiles_view(),
             KeyCode::Char(' ') => self.toggle_autostart(),
@@ -1071,6 +1072,50 @@ impl App {
             path: backup.path.clone(),
         });
         self.overlay = Overlay::Confirm;
+    }
+
+    /// Show the key bindings in the scrollable info pane.
+    fn open_help(&mut self) {
+        let lines = [
+            "Navigation",
+            "  q / Esc          quit",
+            "  Left / Right     switch tab",
+            "  Up / Down        move in a list, scroll a page",
+            "  PageUp/PageDown  scroll a page quickly",
+            "",
+            "Services",
+            "  /                search name and description",
+            "  f / t / s        cycle status / tip / sort filters",
+            "  Enter or a       action menu (enable, disable, start, ...)",
+            "  l                journal log for the selected unit",
+            "  d / D            dependencies / reverse dependencies",
+            "",
+            "Analysis",
+            "  o                disable every suggested service",
+            "  w                write a text report",
+            "",
+            "Autostart",
+            "  space            toggle enabled",
+            "  [ / ]            decrease / increase delay",
+            "  n / x            add a new entry / remove selected",
+            "",
+            "Profiles",
+            "  v                switch between profiles and restore points",
+            "  Enter or a       apply the selected profile",
+            "  b                create a restore point",
+            "  d / x            restore / delete the selected backup",
+            "",
+            "  r                reload system data",
+        ]
+        .iter()
+        .map(|line| line.to_string())
+        .collect();
+
+        self.info = Some(InfoPane {
+            title: "Help".to_string(),
+            lines,
+            scroll: 0,
+        });
     }
 
     fn reset_selection(&mut self) {
@@ -1533,6 +1578,16 @@ mod tests {
         app.handle_key(press(KeyCode::Char('a')));
         assert_eq!(app.overlay, Overlay::Confirm);
         assert!(app.confirmation_prompt().starts_with("Apply this profile?"));
+    }
+
+    #[test]
+    fn help_opens_in_the_info_pane() {
+        let mut app = App::new();
+        app.handle_key(press(KeyCode::Char('?')));
+
+        let info = app.info.as_ref().expect("help pane");
+        assert_eq!(info.title, "Help");
+        assert!(info.lines.iter().any(|line| line.contains("switch tab")));
     }
 
     #[test]
