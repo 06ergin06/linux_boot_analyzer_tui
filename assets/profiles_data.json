@@ -1,0 +1,79 @@
+{
+  "profiles": {
+    "ofis": {
+      "name_tr_key": "prof_office_name",
+      "icon": "document-open",
+      "desc_tr_key": "prof_office_desc",
+      "services": {
+        "cups.service": "enable",
+        "cups-browsed.service": "enable",
+        "bluetooth.service": "enable",
+        "docker.service": "disable",
+        "postgresql.service": "disable",
+        "mysql.service": "disable",
+        "ssh.service": "disable",
+        "sshd.service": "disable",
+        "avahi-daemon.service": "enable",
+        "ModemManager.service": "disable",
+        "NetworkManager-wait-online.service": "disable"
+      }
+    },
+    "yazilimci": {
+      "name_tr_key": "prof_dev_name",
+      "icon": "utilities-terminal",
+      "desc_tr_key": "prof_dev_desc",
+      "services": {
+        "cups.service": "disable",
+        "cups-browsed.service": "disable",
+        "bluetooth.service": "enable",
+        "docker.service": "enable",
+        "postgresql.service": "enable",
+        "mysql.service": "enable",
+        "ssh.service": "enable",
+        "sshd.service": "enable",
+        "avahi-daemon.service": "disable",
+        "ModemManager.service": "disable",
+        "NetworkManager-wait-online.service": "disable"
+      }
+    },
+    "minimum": {
+      "name_tr_key": "prof_min_name",
+      "icon": "battery",
+      "desc_tr_key": "prof_min_desc",
+      "services": {
+        "cups.service": "disable",
+        "cups-browsed.service": "disable",
+        "bluetooth.service": "disable",
+        "docker.service": "disable",
+        "postgresql.service": "disable",
+        "mysql.service": "disable",
+        "ssh.service": "disable",
+        "sshd.service": "disable",
+        "avahi-daemon.service": "disable",
+        "ModemManager.service": "disable",
+        "NetworkManager-wait-online.service": "disable",
+        "colord.service": "disable",
+        "lm-sensors.service": "disable",
+        "smartmontools.service": "disable"
+      }
+    }
+  },
+  "safe_to_disable_services": [
+    "NetworkManager-wait-online.service",
+    "bluetooth.service",
+    "cups.service",
+    "cups-browsed.service",
+    "avahi-daemon.service",
+    "ModemManager.service",
+    "colord.service",
+    "lm-sensors.service",
+    "smartmontools.service"
+  ],
+  "profile_service_labels": {
+    "cups.service": "cups_service_desc",
+    "bluetooth.service": "bluetooth_desc",
+    "docker.service": "docker_desc",
+    "postgresql.service": "postgresql_desc",
+    "ssh.service": "ssh_desc"
+  }
+}
