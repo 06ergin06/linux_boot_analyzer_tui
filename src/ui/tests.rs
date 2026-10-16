@@ -223,6 +223,17 @@ fn password_dialog_keeps_the_key_hint_visible() {
 }
 
 #[test]
+fn the_delay_dialog_shows_the_value_and_the_key_hint() {
+    let mut app = loaded_app(Tab::Autostart);
+    app.handle_key(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
+
+    let text = render_to_string(&app, 80, 24);
+    assert!(text.contains("Delay in seconds:"), "{text}");
+    assert!(text.contains("5s"), "{text}");
+    assert!(text.contains("Enter to save"), "{text}");
+}
+
+#[test]
 fn confirmation_dialog_keeps_the_key_hint_visible() {
     let mut app = loaded_app(Tab::Services);
     // A long unit name wraps the question inside the dialog.

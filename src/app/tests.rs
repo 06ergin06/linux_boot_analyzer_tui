@@ -590,3 +590,85 @@ fn plan_ignores_services_already_in_the_wanted_state() {
     assert!(!plan.disable.contains(&"cups.service".to_string()));
     assert!(!plan.stop.contains(&"cups.service".to_string()));
 }
+
+#[test]
+fn typed_delays_are_parsed_and_capped() {
+    assert_eq!(parse_delay("12"), Some(12));
+    assert_eq!(parse_delay(" 0 "), Some(0));
+    assert_eq!(parse_delay("9999"), Some(600));
+    assert_eq!(parse_delay(""), None);
+    assert_eq!(parse_delay("abc"), None);
+}
+
+#[test]
+fn the_delay_prompt_opens_with_the_current_value() {
+    let mut app = app_with_services();
+    app.tab = Tab::Autostart;
+
+    app.handle_key(press(KeyCode::Char('d')));
+
+    assert_eq!(app.overlay, Overlay::Delay);
+    assert_eq!(app.delay_input, "0");
+}
+
+#[test]
+fn typing_replaces_the_prefilled_delay() {
+    let mut app = app_with_services();
+    app.tab = Tab::Autostart;
+    app.handle_key(press(KeyCode::Char('d')));
+
+    for key in typed("12") {
+        app.handle_key(key);
+    }
+    assert_eq!(app.delay_input, "12");
+
+    app.handle_key(press(KeyCode::Backspace));
+    assert_eq!(app.delay_input, "1");
+
+    app.handle_key(press(KeyCode::Esc));
+    assert_eq!(app.overlay, Overlay::None);
+}
+
+#[test]
+fn an_empty_delay_is_rejected() {
+    let mut app = app_with_services();
+    app.tab = Tab::Autostart;
+    app.handle_key(press(KeyCode::Char('d')));
+    app.handle_key(press(KeyCode::Backspace));
+    app.handle_key(press(KeyCode::Enter));
+
+    assert_eq!(app.overlay, Overlay::Delay);
+    assert_eq!(
+        app.message.as_deref(),
+        Some("Enter the delay as a whole number of seconds.")
+    );
+}
+
+#[test]
+fn saving_a_typed_delay_writes_the_entry() {
+    let mut app = app_with_services();
+    app.tab = Tab::Autostart;
+
+    let path = std::env::temp_dir().join("opencode-delay-test.desktop");
+    if let Some(data) = app.data.as_mut()
+        && let Ok(entries) = &mut data.autostart
+        && let Some(entry) = entries.first_mut()
+    {
+        entry.path = path.clone();
+    }
+
+    app.handle_key(press(KeyCode::Char('d')));
+    for key in typed("12") {
+        app.handle_key(key);
+    }
+    app.handle_key(press(KeyCode::Enter));
+
+    assert_eq!(app.overlay, Overlay::None);
+    let contents = std::fs::read_to_string(&path).expect("written entry");
+    assert!(
+        contents.contains("X-GNOME-Autostart-Delay=12"),
+        "{contents}"
+    );
+    assert!(contents.contains("sleep 12"), "{contents}");
+    let _ = std::fs::remove_file(&path);
+}

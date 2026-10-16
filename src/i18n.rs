@@ -403,6 +403,17 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Enter to run, Esc to cancel",
         "Çalıştırmak için Enter, iptal için Esc",
     ),
+    ("tui_delay_prompt", "Delay in seconds:", "Gecikme (saniye):"),
+    (
+        "tui_delay_keys",
+        "Enter to save, Esc to cancel",
+        "Kaydetmek için Enter, iptal için Esc",
+    ),
+    (
+        "tui_delay_invalid",
+        "Enter the delay as a whole number of seconds.",
+        "Gecikmeyi saniye cinsinden tam sayı olarak girin.",
+    ),
     (
         "tui_press_escape",
         "Press Esc to close.",
@@ -501,6 +512,11 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Tab: sonraki alan    Enter: oluştur    Esc: iptal",
     ),
     (
+        "tui_bar_delay",
+        "digits: seconds    Enter: save    Esc: cancel",
+        "rakamlar: saniye    Enter: kaydet    Esc: iptal",
+    ),
+    (
         "tui_bar_info",
         "Up/Down or j/k: scroll    PageUp/PageDown: page    Esc: close",
         "Yukarı/Aşağı veya j/k: kaydır    PgUp/PgDn: sayfa    Esc: kapat",
@@ -517,8 +533,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_bar_autostart",
-        "space: enable/disable    [ ]: delay -/+1s    n: add    x: remove    r: reload",
-        "boşluk: aç/kapat    [ ]: gecikme -/+1sn    n: ekle    x: sil    r: yenile",
+        "space: enable/disable    d: delay    n: add    x: remove    r: reload",
+        "boşluk: aç/kapat    d: gecikme    n: ekle    x: sil    r: yenile",
     ),
     (
         "tui_bar_profiles",
@@ -617,8 +633,13 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_help_delay",
-        "  [ / ]            decrease / increase delay",
-        "  [ / ]            gecikmeyi azalt / artır",
+        "  d                set the delay in seconds",
+        "  d                gecikmeyi saniye olarak gir",
+    ),
+    (
+        "tui_help_delay_step",
+        "  [ / ]            delay -1s / +1s",
+        "  [ / ]            gecikme -1sn / +1sn",
     ),
     (
         "tui_help_add_remove",

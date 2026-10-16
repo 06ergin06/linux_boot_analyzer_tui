@@ -13,6 +13,9 @@ use crate::privilege::{self, Action};
 use crate::system::{self, Service, SystemData, parse_duration_seconds};
 use crate::{profiles, service_db};
 
+/// Longest autostart start delay the interface accepts, in seconds.
+const MAX_DELAY: u32 = 600;
+
 /// The top-level screens, mirroring the pages of the original GTK application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
@@ -62,6 +65,8 @@ pub enum Overlay {
     Password,
     /// Fill in the "new autostart entry" form.
     Form,
+    /// Type a start delay for the selected autostart entry.
+    Delay,
 }
 
 /// A unit that is enabled, safe to disable, and slow to boot.
@@ -161,6 +166,10 @@ pub struct App {
     pub menu_index: usize,
     /// Whatever the user has typed into the password prompt.
     pub password_input: String,
+    /// Whatever the user has typed into the delay prompt.
+    pub delay_input: String,
+    /// Whether the next digit typed into the delay prompt replaces it.
+    pub delay_replace: bool,
     /// Latest command result, shown in the status line.
     pub message: Option<String>,
     /// Whether a privileged command is currently running.
@@ -204,6 +213,8 @@ impl App {
             overlay: Overlay::None,
             menu_index: 0,
             password_input: String::new(),
+            delay_input: String::new(),
+            delay_replace: false,
             message: None,
             running: false,
             info: None,
@@ -650,6 +661,7 @@ impl App {
             Overlay::Menu => return self.handle_menu_key(key),
             Overlay::Confirm => return self.handle_confirm_key(key),
             Overlay::Form => return self.handle_form_key(key),
+            Overlay::Delay => return self.handle_delay_key(key),
             Overlay::None => {}
         }
 
@@ -714,7 +726,7 @@ impl App {
             KeyCode::Char(']') => self.adjust_autostart_delay(1),
             KeyCode::Char('r') => self.reload_requested = true,
             KeyCode::Char('l') => self.show_journal(),
-            KeyCode::Char('d') => self.dependencies_or_restore(),
+            KeyCode::Char('d') => self.secondary_action(),
             KeyCode::Char('D') => self.show_dependencies(true),
             _ => {}
         }
@@ -951,11 +963,59 @@ impl App {
         let Some(entry) = self.selected_autostart() else {
             return;
         };
-        let delay = (entry.delay as i32 + delta).clamp(0, 600) as u32;
+        let delay = (entry.delay as i32 + delta).clamp(0, MAX_DELAY as i32) as u32;
         if delay == entry.delay {
             return;
         }
         let result = autostart::set_delay(entry, delay);
+        self.finish_local(result);
+    }
+
+    /// d: type a start delay instead of stepping one second at a time.
+    fn begin_delay_edit(&mut self) {
+        if self.tab != Tab::Autostart {
+            return;
+        }
+        let Some(delay) = self.selected_autostart().map(|entry| entry.delay) else {
+            return;
+        };
+        self.delay_input = delay.to_string();
+        // Like a focused spinner: the first digit typed replaces the value.
+        self.delay_replace = true;
+        self.overlay = Overlay::Delay;
+    }
+
+    fn handle_delay_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Enter => self.save_autostart_delay(),
+            KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Backspace => {
+                self.delay_replace = false;
+                self.delay_input.pop();
+            }
+            KeyCode::Char(digit) if digit.is_ascii_digit() && self.delay_input.len() < 4 => {
+                if self.delay_replace {
+                    self.delay_input.clear();
+                    self.delay_replace = false;
+                }
+                self.delay_input.push(digit);
+            }
+            _ => {}
+        }
+    }
+
+    /// Write the typed delay, keeping the prompt open while it is not a number.
+    fn save_autostart_delay(&mut self) {
+        let Some(entry) = self.selected_autostart() else {
+            self.overlay = Overlay::None;
+            return;
+        };
+        let Some(delay) = parse_delay(&self.delay_input) else {
+            self.message = Some(i18n::t("tui_delay_invalid").to_string());
+            return;
+        };
+        let result = autostart::set_delay(entry, delay);
+        self.overlay = Overlay::None;
         self.finish_local(result);
     }
 
@@ -1045,11 +1105,12 @@ impl App {
         }
     }
 
-    /// d: dependencies on the Services tab, restore on the Backups tab.
-    fn dependencies_or_restore(&mut self) {
+    /// d: dependencies (Services), restore (Backups), delay (Autostart).
+    fn secondary_action(&mut self) {
         match self.tab {
             Tab::Services => self.show_dependencies(false),
             Tab::Backups => self.begin_restore_backup(),
+            Tab::Autostart => self.begin_delay_edit(),
             _ => {}
         }
     }
@@ -1192,6 +1253,7 @@ impl App {
             "tui_help_autostart",
             "tui_help_toggle",
             "tui_help_delay",
+            "tui_help_delay_step",
             "tui_help_add_remove",
             "",
             "tui_help_profiles",
@@ -1325,6 +1387,12 @@ fn report_path() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs());
     format!("boot-report-{seconds}.txt")
+}
+
+/// Parse a delay typed into the delay prompt, capped at [`MAX_DELAY`].
+fn parse_delay(input: &str) -> Option<u32> {
+    let delay = input.trim().parse::<u32>().ok()?;
+    Some(delay.min(MAX_DELAY))
 }
 
 /// Carry out a profile/backup plan as root, one verb at a time.

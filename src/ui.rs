@@ -499,6 +499,7 @@ fn action_hints(app: &App) -> &'static str {
         Overlay::Confirm => return i18n::t("tui_bar_confirm"),
         Overlay::Password => return i18n::t("tui_bar_password"),
         Overlay::Form => return i18n::t("tui_bar_form"),
+        Overlay::Delay => return i18n::t("tui_bar_delay"),
         Overlay::None => {}
     }
 
@@ -522,6 +523,7 @@ fn render_overlay(frame: &mut Frame, app: &App) {
         Overlay::Confirm => render_confirm(frame, app),
         Overlay::Password => render_password(frame, app),
         Overlay::Form => render_form(frame, app),
+        Overlay::Delay => render_delay(frame, app),
     }
 }
 
@@ -615,6 +617,25 @@ fn render_password(frame: &mut Frame, app: &App) {
     frame.render_widget(
         Paragraph::new(text)
             .block(Block::bordered().title(title("tui_authentication")))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn render_delay(frame: &mut Frame, app: &App) {
+    let text = vec![
+        Line::from(i18n::t("tui_delay_prompt")),
+        Line::from(format!("{}s", app.delay_input)).bold(),
+        Line::from(""),
+        Line::from(i18n::t("tui_delay_keys")).dim(),
+    ];
+
+    // One row per line plus the two border rows, so the hint always fits.
+    let area = centered_rect(40, text.len() as u16 + 2, frame.area());
+    frame.render_widget(Clear, area);
+    frame.render_widget(
+        Paragraph::new(text)
+            .block(Block::bordered().title(title("delay")))
             .wrap(Wrap { trim: true }),
         area,
     );
