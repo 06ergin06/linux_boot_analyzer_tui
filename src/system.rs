@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
 
+use crate::autostart::{self, AutostartEntry};
 use crate::privilege;
 
 /// Everything the UI needs, gathered on a background thread.
@@ -15,6 +16,7 @@ pub struct SystemData {
     pub boot: Result<BootSummary, String>,
     pub blame: Result<Vec<BlameEntry>, String>,
     pub services: Result<Vec<Service>, String>,
+    pub autostart: Result<Vec<AutostartEntry>, String>,
 }
 
 /// Gather all data. Each section can fail independently.
@@ -24,6 +26,7 @@ pub fn load() -> SystemData {
         boot: boot_summary(),
         blame: blame(),
         services: services(),
+        autostart: autostart::entries(),
     }
 }
 

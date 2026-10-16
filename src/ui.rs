@@ -7,6 +7,7 @@ use ratatui::widgets::{
 };
 
 use crate::app::{App, Overlay, Tab};
+use crate::autostart::AutostartEntry;
 use crate::privilege::Action;
 use crate::system::Service;
 use crate::{profiles, service_db};
@@ -41,12 +42,7 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
     match app.tab {
         Tab::Analysis => render_analysis(frame, app, area),
         Tab::Services => render_services(frame, app, area),
-        Tab::Autostart => render_placeholder(
-            frame,
-            app.tab,
-            area,
-            "Session autostart entries will be listed here.",
-        ),
+        Tab::Autostart => render_autostart(frame, app, area),
         Tab::Profiles => render_profiles(frame, area),
     }
 }
@@ -177,6 +173,80 @@ fn render_service_detail(frame: &mut Frame, service: Option<&Service>, area: Rec
     );
 }
 
+fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
+    let entries = app.autostart_entries();
+    let block = Block::bordered().title(" Autostart ");
+
+    if entries.is_empty() {
+        frame.render_widget(
+            Paragraph::new("No autostart entries. Press 'n' to add one.")
+                .block(block)
+                .wrap(Wrap { trim: true }),
+            area,
+        );
+        return;
+    }
+
+    let [list_area, detail_area] =
+        Layout::vertical([Constraint::Min(0), Constraint::Length(6)]).areas(area);
+
+    let delays: Vec<String> = entries
+        .iter()
+        .map(|entry| entry.delay.to_string())
+        .collect();
+    let rows = entries.iter().enumerate().map(|(index, entry)| {
+        Row::new([
+            entry.name.as_str(),
+            if entry.enabled { "enabled" } else { "disabled" },
+            delays[index].as_str(),
+            entry.exec.as_str(),
+        ])
+    });
+
+    let header = Row::new(["Name", "State", "Delay", "Command"]).style(Style::new().bold());
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Min(20),
+            Constraint::Length(9),
+            Constraint::Length(6),
+            Constraint::Min(20),
+        ],
+    )
+    .header(header)
+    .block(block)
+    .row_highlight_style(Style::new().reversed())
+    .highlight_symbol("> ");
+
+    let mut state = TableState::default().with_selected(app.autostart_selected);
+    frame.render_stateful_widget(table, list_area, &mut state);
+
+    render_autostart_detail(frame, app.selected_autostart(), detail_area);
+}
+
+fn render_autostart_detail(frame: &mut Frame, entry: Option<&AutostartEntry>, area: Rect) {
+    let lines = match entry {
+        Some(entry) => vec![
+            Line::from(entry.name.as_str()),
+            Line::from(format!("Command: {}", entry.exec)),
+            Line::from(format!(
+                "Delay: {}s    Enabled: {}",
+                entry.delay, entry.enabled
+            )),
+            Line::from(format!("File: {}", entry.path.display())),
+            Line::from("space: toggle   [ ]: delay   x: remove").dim(),
+        ],
+        None => vec![Line::from("No entry selected.")],
+    };
+
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(Block::bordered().title(" Details "))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
 fn render_profiles(frame: &mut Frame, area: Rect) {
     let profiles = profiles::data();
     let mut ids: Vec<&String> = profiles.profiles.keys().collect();
@@ -193,15 +263,6 @@ fn render_profiles(frame: &mut Frame, area: Rect) {
     frame.render_widget(
         Paragraph::new(lines)
             .block(Block::bordered().title(" Profiles "))
-            .wrap(Wrap { trim: true }),
-        area,
-    );
-}
-
-fn render_placeholder(frame: &mut Frame, tab: Tab, area: Rect, text: &str) {
-    frame.render_widget(
-        Paragraph::new(text)
-            .block(Block::bordered().title(format!(" {} ", tab.title())))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -226,6 +287,7 @@ fn render_overlay(frame: &mut Frame, app: &App) {
         Overlay::Menu => render_action_menu(frame, app),
         Overlay::Confirm => render_confirm(frame, app),
         Overlay::Password => render_password(frame, app),
+        Overlay::Form => render_form(frame, app),
     }
 }
 
@@ -255,6 +317,29 @@ fn render_confirm(frame: &mut Frame, app: &App) {
     frame.render_widget(
         Paragraph::new(text)
             .block(Block::bordered().title(" Confirm "))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn render_form(frame: &mut Frame, app: &App) {
+    const LABELS: [&str; 2] = ["Name", "Command"];
+
+    let area = centered_rect(60, LABELS.len() as u16 + 4, frame.area());
+    frame.render_widget(Clear, area);
+
+    let mut lines = Vec::new();
+    for (index, label) in LABELS.iter().enumerate() {
+        let value = app.form_values.get(index).map(String::as_str).unwrap_or("");
+        let marker = if index == app.form_index { ">" } else { " " };
+        lines.push(Line::from(format!("{marker} {label}: {value}")));
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from("Tab: next field   Enter: create   Esc: cancel").dim());
+
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(Block::bordered().title(" New Autostart Entry "))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -355,6 +440,15 @@ mod tests {
                 description: "Network Manager".to_string(),
                 enabled: "enabled".to_string(),
             }]),
+            autostart: Ok(vec![AutostartEntry {
+                path: std::path::PathBuf::from("/home/user/.config/autostart/example.desktop"),
+                name: "Example App".to_string(),
+                exec: "example --start".to_string(),
+                comment: String::new(),
+                icon: "system-run".to_string(),
+                delay: 5,
+                enabled: false,
+            }]),
         }
     }
 
@@ -420,5 +514,25 @@ mod tests {
         let text = render_to_string(&app, 100, 24);
         assert!(text.contains("Log: sshd.service"));
         assert!(text.contains("Started sshd."));
+    }
+
+    #[test]
+    fn autostart_tab_lists_entries() {
+        let app = loaded_app(Tab::Autostart);
+        let text = render_to_string(&app, 100, 24);
+        assert!(text.contains("Example App"));
+        assert!(text.contains("disabled"));
+        assert!(text.contains("example --start"));
+    }
+
+    #[test]
+    fn add_form_overlay_shows_both_fields() {
+        let mut app = loaded_app(Tab::Autostart);
+        app.overlay = Overlay::Form;
+        app.form_values = vec!["My App".to_string(), "myapp".to_string()];
+
+        let text = render_to_string(&app, 100, 24);
+        assert!(text.contains("New Autostart Entry"));
+        assert!(text.contains("My App"));
     }
 }

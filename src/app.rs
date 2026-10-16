@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
+use crate::autostart::{self, AutostartEntry};
 use crate::filters::{SortBy, StatusFilter, TipFilter};
 use crate::privilege::{self, Action};
 use crate::system::{self, Service, SystemData, parse_duration_seconds};
@@ -48,6 +50,8 @@ pub enum Overlay {
     Confirm,
     /// Ask for the sudo password.
     Password,
+    /// Fill in the "new autostart entry" form.
+    Form,
 }
 
 /// A unit that is enabled, safe to disable, and slow to boot.
@@ -73,6 +77,17 @@ enum Pending {
     Action(Action, String),
     /// Disable every suggested service.
     Bulk(Vec<String>),
+    /// Delete an autostart entry.
+    RemoveAutostart { name: String, path: PathBuf },
+    /// Create a new autostart entry.
+    AddAutostart { name: String, command: String },
+}
+
+impl Pending {
+    /// Whether the work needs root privileges.
+    fn needs_password(&self) -> bool {
+        matches!(self, Pending::Action(..) | Pending::Bulk(..))
+    }
 }
 
 /// Result of a background task started by the UI.
@@ -91,6 +106,12 @@ pub struct App {
     pub data: Option<SystemData>,
     /// Selected row in the services table.
     pub selected: usize,
+    /// Selected row in the autostart list.
+    pub autostart_selected: usize,
+    /// Values of the open form, one per field.
+    pub form_values: Vec<String>,
+    /// Which form field is being edited.
+    pub form_index: usize,
     /// First visible line of the analysis page.
     pub analysis_scroll: u16,
     /// Whether the initial snapshot is still loading.
@@ -132,6 +153,9 @@ impl App {
             should_quit: false,
             data: None,
             selected: 0,
+            autostart_selected: 0,
+            form_values: Vec::new(),
+            form_index: 0,
             analysis_scroll: 0,
             loading: true,
             status_filter: StatusFilter::All,
@@ -365,8 +389,27 @@ impl App {
         match &self.pending {
             Some(Pending::Action(action, unit)) => format!("{} {unit}?", action.label()),
             Some(Pending::Bulk(units)) => format!("Disable {} suggested service(s)?", units.len()),
-            None => "Confirm?".to_string(),
+            Some(Pending::RemoveAutostart { name, .. }) => {
+                format!("Remove autostart entry \"{name}\"?")
+            }
+            Some(Pending::AddAutostart { .. }) | None => "Confirm?".to_string(),
         }
+    }
+
+    // --- Autostart tab data ---
+
+    /// Autostart entries from `~/.config/autostart`.
+    pub fn autostart_entries(&self) -> &[AutostartEntry] {
+        self.data
+            .as_ref()
+            .and_then(|data| data.autostart.as_ref().ok())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    /// The autostart entry currently highlighted.
+    pub fn selected_autostart(&self) -> Option<&AutostartEntry> {
+        self.autostart_entries().get(self.autostart_selected)
     }
 
     /// Plain-text report of the current analysis, for exporting to a file.
@@ -419,6 +462,7 @@ impl App {
             Overlay::Password => return self.handle_password_key(key),
             Overlay::Menu => return self.handle_menu_key(key),
             Overlay::Confirm => return self.handle_confirm_key(key),
+            Overlay::Form => return self.handle_form_key(key),
             Overlay::None => {}
         }
 
@@ -468,6 +512,11 @@ impl App {
             }
             KeyCode::Char('o') => self.begin_quick_optimize(),
             KeyCode::Char('w') => self.export_report(),
+            KeyCode::Char(' ') => self.toggle_autostart(),
+            KeyCode::Char('n') => self.begin_add_form(),
+            KeyCode::Char('x') => self.begin_remove_autostart(),
+            KeyCode::Char('[') => self.adjust_autostart_delay(-1),
+            KeyCode::Char(']') => self.adjust_autostart_delay(1),
             KeyCode::Char('r') => self.reload_requested = true,
             KeyCode::Char('l') => self.show_journal(),
             KeyCode::Char('d') => self.show_dependencies(false),
@@ -630,21 +679,22 @@ impl App {
     /// Run the pending work, asking for a password first if needed.
     fn run_pending(&mut self) {
         self.overlay = Overlay::None;
-        if self.pending.is_none() {
+        let Some(pending) = self.pending.as_ref() else {
+            return;
+        };
+
+        // Only privileged work needs a password.
+        if pending.needs_password() && self.password.is_none() {
+            self.password_input.clear();
+            self.overlay = Overlay::Password;
             return;
         }
 
-        match self.password.clone() {
-            Some(password) => {
-                if let Some(pending) = self.pending.take() {
-                    self.spawn_pending(pending, password);
-                }
-            }
-            None => {
-                self.password_input.clear();
-                self.overlay = Overlay::Password;
-            }
-        }
+        let Some(pending) = self.pending.take() else {
+            return;
+        };
+        let password = self.password.clone().unwrap_or_default();
+        self.spawn_pending(pending, password);
     }
 
     fn spawn_pending(&mut self, pending: Pending, password: String) {
@@ -655,9 +705,122 @@ impl App {
             let result = match pending {
                 Pending::Action(action, unit) => privilege::systemctl(action, &unit, &password),
                 Pending::Bulk(units) => privilege::disable_all(&units, &password),
+                Pending::RemoveAutostart { path, .. } => {
+                    autostart::remove(&path).map(|()| "Autostart entry removed.".to_string())
+                }
+                Pending::AddAutostart { name, command } => autostart::add(&name, &command)
+                    .map(|path| format!("Created {}", path.display())),
             };
             let _ = sender.send(CommandOutcome::Message(result));
         });
+    }
+
+    /// Start a pending job without a confirmation step.
+    fn perform(&mut self, pending: Pending) {
+        self.pending = Some(pending);
+        self.run_pending();
+    }
+
+    // --- Autostart actions ---
+
+    fn toggle_autostart(&mut self) {
+        if self.tab != Tab::Autostart {
+            return;
+        }
+        let Some(entry) = self.selected_autostart() else {
+            return;
+        };
+        let result = autostart::set_enabled(entry, !entry.enabled);
+        self.finish_local(result);
+    }
+
+    fn adjust_autostart_delay(&mut self, delta: i32) {
+        if self.tab != Tab::Autostart {
+            return;
+        }
+        let Some(entry) = self.selected_autostart() else {
+            return;
+        };
+        let delay = (entry.delay as i32 + delta).clamp(0, 600) as u32;
+        if delay == entry.delay {
+            return;
+        }
+        let result = autostart::set_delay(entry, delay);
+        self.finish_local(result);
+    }
+
+    fn begin_add_form(&mut self) {
+        if self.tab != Tab::Autostart {
+            return;
+        }
+        self.form_values = vec![String::new(), String::new()];
+        self.form_index = 0;
+        self.overlay = Overlay::Form;
+    }
+
+    fn begin_remove_autostart(&mut self) {
+        if self.tab != Tab::Autostart {
+            return;
+        }
+        let Some(entry) = self.selected_autostart() else {
+            return;
+        };
+        self.pending = Some(Pending::RemoveAutostart {
+            name: entry.name.clone(),
+            path: entry.path.clone(),
+        });
+        self.overlay = Overlay::Confirm;
+    }
+
+    fn handle_form_key(&mut self, key: KeyEvent) {
+        let fields = self.form_values.len();
+        match key.code {
+            KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Enter => self.submit_form(),
+            KeyCode::Tab | KeyCode::Down => self.form_index = (self.form_index + 1) % fields,
+            KeyCode::BackTab | KeyCode::Up => {
+                self.form_index = (self.form_index + fields - 1) % fields
+            }
+            KeyCode::Backspace => {
+                if let Some(field) = self.form_values.get_mut(self.form_index) {
+                    field.pop();
+                }
+            }
+            KeyCode::Char(character) => {
+                if let Some(field) = self.form_values.get_mut(self.form_index) {
+                    field.push(character);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn submit_form(&mut self) {
+        let name = self.form_values.first().cloned().unwrap_or_default();
+        let command = self.form_values.get(1).cloned().unwrap_or_default();
+        self.overlay = Overlay::None;
+
+        if name.trim().is_empty() {
+            self.message = Some("A name is required.".to_string());
+            return;
+        }
+        if command.trim().is_empty() {
+            self.message = Some("A command is required.".to_string());
+            return;
+        }
+
+        self.perform(Pending::AddAutostart { name, command });
+    }
+
+    /// Report the outcome of a local (non-privileged) file change.
+    fn finish_local(&mut self, result: Result<(), String>) {
+        match result {
+            Ok(()) => {
+                self.message = Some("Autostart entry updated.".to_string());
+                self.reload_requested = true;
+            }
+            Err(error) => self.message = Some(error),
+        }
     }
 
     fn reset_selection(&mut self) {
@@ -683,6 +846,12 @@ impl App {
                     self.selected = (self.selected + 1).min(count - 1);
                 }
             }
+            Tab::Autostart => {
+                let count = self.autostart_entries().len();
+                if count > 0 {
+                    self.autostart_selected = (self.autostart_selected + 1).min(count - 1);
+                }
+            }
             Tab::Analysis => self.scroll_analysis(1),
             _ => {}
         }
@@ -691,6 +860,7 @@ impl App {
     fn move_up(&mut self) {
         match self.tab {
             Tab::Services => self.selected = self.selected.saturating_sub(1),
+            Tab::Autostart => self.autostart_selected = self.autostart_selected.saturating_sub(1),
             Tab::Analysis => self.scroll_analysis(-1),
             _ => {}
         }
@@ -775,6 +945,15 @@ mod tests {
                     enabled: "disabled".to_string(),
                 },
             ]),
+            autostart: Ok(vec![AutostartEntry {
+                path: PathBuf::from("/tmp/example.desktop"),
+                name: "Example".to_string(),
+                exec: "example".to_string(),
+                comment: String::new(),
+                icon: "system-run".to_string(),
+                delay: 0,
+                enabled: true,
+            }]),
         });
         app
     }
@@ -972,5 +1151,55 @@ mod tests {
         assert!(report.starts_with("Linux Boot Analysis Report"));
         assert!(report.contains("Slowest units"));
         assert!(report.ends_with("Generated by linux_boot_analyzer_tui\n"));
+    }
+
+    #[test]
+    fn autostart_entry_is_selectable() {
+        let mut app = app_with_services();
+        app.tab = Tab::Autostart;
+        assert!(app.selected_autostart().is_some());
+
+        app.handle_key(press(KeyCode::Down));
+        assert_eq!(app.autostart_selected, 0);
+    }
+
+    #[test]
+    fn removing_an_autostart_entry_asks_for_confirmation() {
+        let mut app = app_with_services();
+        app.tab = Tab::Autostart;
+
+        app.handle_key(press(KeyCode::Char('x')));
+
+        assert_eq!(app.overlay, Overlay::Confirm);
+        assert!(app.confirmation_prompt().contains("Example"));
+    }
+
+    #[test]
+    fn add_form_requires_a_name() {
+        let mut app = app_with_services();
+        app.tab = Tab::Autostart;
+
+        app.handle_key(press(KeyCode::Char('n')));
+        assert_eq!(app.overlay, Overlay::Form);
+
+        app.handle_key(press(KeyCode::Enter));
+        assert_eq!(app.message.as_deref(), Some("A name is required."));
+    }
+
+    #[test]
+    fn form_edits_the_active_field() {
+        let mut app = app_with_services();
+        app.tab = Tab::Autostart;
+        app.handle_key(press(KeyCode::Char('n')));
+
+        for key in typed("My App") {
+            app.handle_key(key);
+        }
+        app.handle_key(press(KeyCode::Tab));
+        for key in typed("myapp") {
+            app.handle_key(key);
+        }
+
+        assert_eq!(app.form_values, ["My App", "myapp"]);
     }
 }

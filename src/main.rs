@@ -2,6 +2,7 @@
 //! `pardus-boot-analyzer` application.
 
 mod app;
+mod autostart;
 mod filters;
 mod privilege;
 mod profiles;
