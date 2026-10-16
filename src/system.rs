@@ -144,15 +144,22 @@ pub fn services() -> Result<Vec<Service>, String> {
     Ok(merge_services(&units, parse_unit_file_states(&files)))
 }
 
+/// systemctl marks a unit in its first column with a glyph. With `LC_ALL=C`
+/// (which we set for stable parsing) that glyph is a plain `*`.
+const UNIT_MARKERS: &[char] = &['*', '●', '×'];
+
 fn parse_units(output: &str) -> Vec<(String, String, String, String)> {
     output
         .lines()
         .filter_map(|line| {
-            // An active unit is prefixed with a filled circle.
-            let line = line.trim().trim_start_matches('●').trim();
+            let line = line.trim().trim_start_matches(UNIT_MARKERS).trim();
             let mut parts = line.split_whitespace();
             let name = parts.next()?.to_string();
-            parts.next()?; // LOAD
+            let load = parts.next()?;
+            // Units that are not installed ("not-found") are noise, not services.
+            if load == "not-found" {
+                return None;
+            }
             let active = parts.next()?.to_string();
             let sub = parts.next()?.to_string();
             let description = parts.collect::<Vec<_>>().join(" ");
@@ -332,5 +339,21 @@ mod tests {
         assert_eq!(services[0].active, "inactive");
         assert_eq!(services[0].enabled, "disabled");
         assert_eq!(services[1].name, "sshd.service");
+    }
+
+    #[test]
+    fn strips_markers_and_skips_not_found_units() {
+        // With LC_ALL=C systemctl marks active units with `*`; not-found units
+        // must not leak into the list.
+        let units = "* sshd.service loaded active running OpenSSH server\n\
+                     ● alsa.service loaded active exited Sound Card\n\
+                     * auditd.service not-found inactive dead auditd.service\n";
+
+        let services = merge_services(units, HashMap::new());
+
+        assert_eq!(services.len(), 2);
+        assert_eq!(services[0].name, "alsa.service");
+        assert_eq!(services[1].name, "sshd.service");
+        assert_eq!(services[1].active, "active");
     }
 }
