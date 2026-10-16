@@ -158,6 +158,26 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ("tab_services", "Services", "Servisler"),
     ("tab_autostart", "Autostart", "Başlangıç"),
     ("tab_profiles", "Profiles", "Profiller"),
+    ("tab_backups", "Backups", "Yedekler"),
+    // --- Services unit types ----------------------------------------------
+    (
+        "view_services",
+        "Services (.service)",
+        "Servisler (.service)",
+    ),
+    (
+        "view_others",
+        "Others (socket, target, mount)",
+        "Diğerleri (socket, target, mount)",
+    ),
+    ("view_devices", "Devices (.device)", "Aygıtlar (.device)"),
+    ("tui_view_count", "{}/{} {}", "{}/{} {}"),
+    (
+        "tui_device_not_manageable",
+        "Device units cannot be managed from here.",
+        "Aygıt birimleri buradan yönetilemez.",
+    ),
+    ("sub_state", "Sub State", "Alt Durum"),
     // --- Analysis page ----------------------------------------------------
     ("tui_system", "System", "Sistem"),
     ("sys_os", "OS:", "Sistem:"),
@@ -405,9 +425,9 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Optimize edilecek bir şey yok.",
     ),
     (
-        "tui_report_written",
-        "Report written to {}",
-        "Rapor şuraya yazıldı: {}",
+        "tui_report_copied",
+        "Report written to {} and copied to the clipboard",
+        "Rapor şuraya yazıldı ve panoya kopyalandı: {}",
     ),
     (
         "tui_report_failed",
@@ -492,8 +512,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_bar_services",
-        "Enter/a: actions (enable, disable, start, stop, mask)    l: journal    d/D: dependencies    /: search    f/t/s: filters    r: reload",
-        "Enter/a: işlemler (etkinleştir, kapat, başlat, durdur, maskele)    l: günlük    d/D: bağımlılıklar    /: ara    f/t/s: filtre    r: yenile",
+        "v or Left/Right: unit type    Enter/a: actions (enable, disable, start, stop, mask)    l: journal    d/D: dependencies    /: search    f/t/s: filters    r: reload",
+        "v veya Sol/Sağ: birim türü    Enter/a: işlemler (etkinleştir, kapat, başlat, durdur, maskele)    l: günlük    d/D: bağımlılıklar    /: ara    f/t/s: filtre    r: yenile",
     ),
     (
         "tui_bar_autostart",
@@ -502,18 +522,18 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_bar_profiles",
-        "Enter/a: apply profile    b: create restore point    v: restore points    r: reload",
-        "Enter/a: profili uygula    b: geri yükleme noktası oluştur    v: noktalar    r: yenile",
+        "Enter/a: apply profile    b: create restore point    r: reload",
+        "Enter/a: profili uygula    b: geri yükleme noktası oluştur    r: yenile",
     ),
     (
         "tui_bar_backups",
-        "d: restore    x: delete    b: create restore point    v: profiles    r: reload",
-        "d: geri yükle    x: sil    b: nokta oluştur    v: profiller    r: yenile",
+        "d: restore    x: delete    b: create restore point    r: reload",
+        "d: geri yükle    x: sil    b: nokta oluştur    r: yenile",
     ),
     (
         "tui_bar_global",
-        "q: quit    Up/Down: move    Left/Right: tab    ?: help    L: language",
-        "q: çık    Yukarı/Aşağı: gez    Sol/Sağ: sekme    ?: yardım    L: dil",
+        "q: quit    Tab: switch tab    Up/Down: move    ?: help    L: language",
+        "q: çık    Tab: sekme    Yukarı/Aşağı: gez    ?: yardım    L: dil",
     ),
     // --- Help overlay -----------------------------------------------------
     ("tui_help_navigation", "Navigation", "Gezinme"),
@@ -524,8 +544,13 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_help_tab",
-        "  Left / Right     switch tab",
-        "  Sol / Sağ        sekme değiştir",
+        "  Tab / Shift+Tab  switch tab",
+        "  Tab / Shift+Tab  sekme değiştir",
+    ),
+    (
+        "tui_help_tab_keys",
+        "  1 - 5            jump straight to a tab",
+        "  1 - 5            doğrudan o sekmeye git",
     ),
     (
         "tui_help_move",
@@ -543,6 +568,11 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "  L                dili değiştir",
     ),
     ("tui_help_services", "Services", "Servisler"),
+    (
+        "tui_help_view",
+        "  v or Left/Right  unit type: services, others, devices",
+        "  v veya Sol/Sağ    birim türü: servisler, diğerleri, aygıtlar",
+    ),
     (
         "tui_help_search",
         "  /                search name and description",
@@ -597,15 +627,11 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     ("tui_help_profiles", "Profiles", "Profiller"),
     (
-        "tui_help_view",
-        "  v                switch between profiles and restore points",
-        "  v                profiller ve geri yükleme noktaları arasında geç",
-    ),
-    (
         "tui_help_apply",
         "  Enter or a       apply the selected profile",
         "  Enter veya a     seçili profili uygula",
     ),
+    ("tui_help_backups", "Backups", "Yedekler"),
     (
         "tui_help_backup",
         "  b                create a restore point",
@@ -707,6 +733,25 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Ideal settings for office tasks and daily use. Printer, Bluetooth, and network services remain enabled.",
         "Ofis işleri ve günlük kullanım için ideal ayarlar. Yazıcı, bluetooth ve ağ servisleri açık kalır.",
     ),
+    ("tahmini_saving", "Estimated Savings", "Tahmini Kazanç"),
+    // Friendly names used by the profile checklist (same keys as the GTK app).
+    (
+        "cups_service_desc",
+        "Printer Service (CUPS)",
+        "Yazıcı Servisi (CUPS)",
+    ),
+    ("bluetooth_desc", "Bluetooth Support", "Bluetooth Desteği"),
+    (
+        "docker_desc",
+        "Docker Container Engine",
+        "Docker Konteyner Motoru",
+    ),
+    (
+        "postgresql_desc",
+        "PostgreSQL Database",
+        "PostgreSQL Veritabanı",
+    ),
+    ("ssh_desc", "SSH Remote Access", "SSH Uzaktan Erişim"),
     ("unknown", "Unknown", "Bilinmiyor"),
 ];
 

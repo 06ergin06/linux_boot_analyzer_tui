@@ -1,12 +1,12 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Style, Stylize};
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Clear, List, ListState, Paragraph, Row, Table, TableState, Tabs, Wrap,
 };
 
-use crate::app::{App, Overlay, ProfilesView, Tab};
+use crate::app::{App, Overlay, Tab};
 use crate::autostart::AutostartEntry;
 use crate::i18n;
 use crate::privilege::Action;
@@ -46,6 +46,7 @@ fn render_body(frame: &mut Frame, app: &App, area: Rect) {
         Tab::Services => render_services(frame, app, area),
         Tab::Autostart => render_autostart(frame, app, area),
         Tab::Profiles => render_profiles(frame, app, area),
+        Tab::Backups => render_backups(frame, app, area),
     }
 }
 
@@ -103,7 +104,8 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
 
     let header = Row::new([
         i18n::t("service_name"),
-        i18n::t("filter_active"),
+        i18n::t("state"),
+        i18n::t("sub_state"),
         i18n::t("tui_boot_config"),
         i18n::t("time"),
         i18n::t("tui_tip"),
@@ -117,6 +119,7 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
         Row::new([
             service.name.as_str(),
             state_label(&service.active),
+            state_label(&service.sub),
             state_label(&service.enabled),
             time,
             tip,
@@ -130,11 +133,12 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(10),
             Constraint::Length(10),
             Constraint::Length(10),
-            Constraint::Length(12),
+            Constraint::Length(10),
+            Constraint::Length(11),
         ],
     )
     .header(header)
-    .block(Block::bordered().title(title("tab_services")))
+    .block(Block::bordered().title(services_title(app)))
     .row_highlight_style(Style::new().reversed())
     .highlight_symbol("> ");
 
@@ -142,6 +146,19 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(table, table_area, &mut state);
 
     render_service_detail(frame, visible.get(app.selected).copied(), detail_area);
+}
+
+/// `" Services (.service) — 12/450 services "` for the table border.
+fn services_title(app: &App) -> String {
+    let count = i18n::fill(
+        i18n::t("tui_view_count"),
+        &[
+            &app.visible_services().len().to_string(),
+            &app.view_total().to_string(),
+            i18n::t("service_count"),
+        ],
+    );
+    format!(" {} — {count} ", app.view.label())
 }
 
 fn render_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
@@ -294,13 +311,19 @@ fn state_label(state: &str) -> &str {
 }
 
 fn render_profiles(frame: &mut Frame, app: &App, area: Rect) {
-    let [lists, detail] = Layout::vertical([Constraint::Min(0), Constraint::Length(9)]).areas(area);
-    let [profiles_area, backups_area] =
-        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(lists);
+    let [list_area, detail_area] =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(area);
 
-    render_profile_list(frame, app, profiles_area);
-    render_backup_list(frame, app, backups_area);
-    render_profile_detail(frame, app, detail);
+    render_profile_list(frame, app, list_area);
+    render_profile_detail(frame, app, detail_area);
+}
+
+fn render_backups(frame: &mut Frame, app: &App, area: Rect) {
+    let [list_area, detail_area] =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(area);
+
+    render_backup_list(frame, app, list_area);
+    render_backup_detail(frame, app, detail_area);
 }
 
 fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
@@ -330,18 +353,12 @@ fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
         ])
     });
 
-    let block_title = if app.profiles_view == ProfilesView::Profiles {
-        format!(" {} {} ", i18n::t("profiller_title"), i18n::t("tui_active"))
-    } else {
-        title("profiller_title")
-    };
-
     let table = Table::new(
         rows,
         [
             Constraint::Min(14),
-            Constraint::Length(12),
-            Constraint::Length(12),
+            Constraint::Length(9),
+            Constraint::Length(9),
         ],
     )
     .header(
@@ -352,7 +369,7 @@ fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
         ])
         .style(Style::new().bold()),
     )
-    .block(Block::bordered().title(block_title))
+    .block(Block::bordered().title(title("profiller_title")))
     .row_highlight_style(Style::new().reversed())
     .highlight_symbol("> ");
 
@@ -372,21 +389,11 @@ fn render_backup_list(frame: &mut Frame, app: &App, area: Rect) {
         .enumerate()
         .map(|(index, backup)| Row::new([backup.name.as_str(), counts[index].as_str()]));
 
-    let block_title = if app.profiles_view == ProfilesView::Backups {
-        format!(
-            " {} {} ",
-            i18n::t("backup_noktalari"),
-            i18n::t("tui_active")
-        )
-    } else {
-        title("backup_noktalari")
-    };
-
     let table = Table::new(rows, [Constraint::Min(20), Constraint::Length(12)])
         .header(
             Row::new([i18n::t("tui_backup"), i18n::t("tui_services")]).style(Style::new().bold()),
         )
-        .block(Block::bordered().title(block_title))
+        .block(Block::bordered().title(title("backup_noktalari")))
         .row_highlight_style(Style::new().reversed())
         .highlight_symbol("> ");
 
@@ -395,44 +402,35 @@ fn render_backup_list(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
-    let lines = match app.profiles_view {
-        ProfilesView::Profiles => match app.selected_profile() {
-            Some(id) => {
-                let profile = profiles::data().profiles.get(id);
-                let name = profile.map_or(id, |profile| profile.name());
-                let description = profile.map_or("", |profile| profile.description());
-                let (enable, disable) = profiles::selections(id);
-                vec![
-                    Line::from(i18n::fill(i18n::t("tui_profile_label"), &[name])),
-                    Line::from(description),
-                    Line::from(""),
-                    Line::from(format!(
-                        "{}: {}",
-                        i18n::t("tui_enable_count"),
-                        join_or_dash(&enable)
-                    )),
-                    Line::from(format!(
-                        "{}: {}",
-                        i18n::t("tui_disable_count"),
-                        join_or_dash(&disable)
-                    )),
-                ]
+    let lines = match app.selected_profile() {
+        Some(id) => {
+            let profile = profiles::data().profiles.get(id);
+            let name = profile.map_or(id, |profile| profile.name());
+            let description = profile.map_or("", |profile| profile.description());
+
+            let mut lines = vec![
+                Line::from(i18n::fill(i18n::t("tui_profile_label"), &[name])),
+                Line::from(description),
+                Line::from(""),
+                Line::from(savings_line(app.profile_savings(id))),
+                Line::from(""),
+            ];
+
+            // The same ✔/✘ list the profile cards show in the GTK application.
+            for (enable, label) in profiles::checklist(id) {
+                let (mark, style) = if enable {
+                    ("✔", Style::new().green())
+                } else {
+                    ("✘", Style::new().red())
+                };
+                lines.push(Line::from(vec![
+                    Span::styled(mark, style),
+                    Span::raw(format!("  {label}")),
+                ]));
             }
-            None => vec![Line::from(i18n::t("tui_no_profile_selected"))],
-        },
-        ProfilesView::Backups => match app.selected_backup() {
-            Some(backup) => vec![
-                Line::from(backup.name.as_str()),
-                Line::from(format!("{} {}", i18n::t("tui_saved"), backup.timestamp)),
-                Line::from(format!(
-                    "{}: {}",
-                    i18n::t("tui_services"),
-                    backup.services.len()
-                )),
-                Line::from(format!("{} {}", i18n::t("tui_file"), backup.path.display())),
-            ],
-            None => vec![Line::from(i18n::t("tui_create_backup_hint"))],
-        },
+            lines
+        }
+        None => vec![Line::from(i18n::t("tui_no_profile_selected"))],
     };
 
     frame.render_widget(
@@ -443,11 +441,35 @@ fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-fn join_or_dash(names: &[String]) -> String {
-    if names.is_empty() {
-        "-".to_string()
+fn render_backup_detail(frame: &mut Frame, app: &App, area: Rect) {
+    let lines = match app.selected_backup() {
+        Some(backup) => vec![
+            Line::from(backup.name.as_str()),
+            Line::from(i18n::fill(i18n::t("tui_saved"), &[&backup.timestamp])),
+            Line::from(format!(
+                "{}: {}",
+                i18n::t("tui_services"),
+                backup.services.len()
+            )),
+            Line::from(format!("{} {}", i18n::t("tui_file"), backup.path.display())),
+        ],
+        None => vec![Line::from(i18n::t("tui_create_backup_hint"))],
+    };
+
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(Block::bordered().title(title("tui_details")))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+/// `"Estimated Savings: ~1.5s"`, or `< 0.1s` when it is negligible.
+fn savings_line(seconds: f64) -> String {
+    if seconds > 0.05 {
+        format!("{}: ~{seconds:.1}s", i18n::t("tahmini_saving"))
     } else {
-        names.join(", ")
+        format!("{}: < 0.1s", i18n::t("tahmini_saving"))
     }
 }
 
@@ -488,10 +510,8 @@ fn action_hints(app: &App) -> &'static str {
         Tab::Analysis => i18n::t("tui_bar_analysis"),
         Tab::Services => i18n::t("tui_bar_services"),
         Tab::Autostart => i18n::t("tui_bar_autostart"),
-        Tab::Profiles => match app.profiles_view {
-            ProfilesView::Profiles => i18n::t("tui_bar_profiles"),
-            ProfilesView::Backups => i18n::t("tui_bar_backups"),
-        },
+        Tab::Profiles => i18n::t("tui_bar_profiles"),
+        Tab::Backups => i18n::t("tui_bar_backups"),
     }
 }
 

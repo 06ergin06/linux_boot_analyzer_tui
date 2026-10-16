@@ -103,6 +103,61 @@ impl TipFilter {
     }
 }
 
+/// Which unit types the Services tab lists.
+///
+/// Ported from the original application's view selector, which shows services,
+/// "other" units (sockets, targets, mounts, swaps) or device units.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceView {
+    Services,
+    Others,
+    Devices,
+}
+
+impl ServiceView {
+    pub const ALL: [ServiceView; 3] = [
+        ServiceView::Services,
+        ServiceView::Others,
+        ServiceView::Devices,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ServiceView::Services => i18n::t("view_services"),
+            ServiceView::Others => i18n::t("view_others"),
+            ServiceView::Devices => i18n::t("view_devices"),
+        }
+    }
+
+    pub fn next(self) -> Self {
+        Self::ALL[(self.position() + 1) % Self::ALL.len()]
+    }
+
+    pub fn previous(self) -> Self {
+        Self::ALL[(self.position() + Self::ALL.len() - 1) % Self::ALL.len()]
+    }
+
+    fn position(self) -> usize {
+        Self::ALL.iter().position(|view| *view == self).unwrap_or(0)
+    }
+
+    /// Whether a unit belongs to this view.
+    pub fn matches(self, service: &Service) -> bool {
+        match self {
+            ServiceView::Services => service.name.ends_with(".service"),
+            ServiceView::Devices => service.name.ends_with(".device"),
+            ServiceView::Others => {
+                !service.name.ends_with(".service") && !service.name.ends_with(".device")
+            }
+        }
+    }
+
+    /// Whether the units in this view can be enabled, started or masked.
+    pub fn is_manageable(self) -> bool {
+        self != ServiceView::Devices
+    }
+}
+
 /// Sort order for the services table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortBy {
@@ -155,6 +210,33 @@ mod tests {
         let network_manager = service("NetworkManager.service", "active", "enabled");
         assert!(TipFilter::Critical.matches(&network_manager));
         assert!(!TipFilter::Suggestion.matches(&network_manager));
+    }
+
+    #[test]
+    fn service_view_splits_units_by_type() {
+        let service_unit = service("sshd.service", "active", "enabled");
+        let device_unit = service("dev-sda1.device", "active", "plugged");
+        let socket_unit = service("cups.socket", "active", "enabled");
+
+        assert!(ServiceView::Services.matches(&service_unit));
+        assert!(!ServiceView::Services.matches(&device_unit));
+        assert!(ServiceView::Devices.matches(&device_unit));
+        assert!(!ServiceView::Devices.matches(&socket_unit));
+        assert!(ServiceView::Others.matches(&socket_unit));
+        assert!(!ServiceView::Others.matches(&service_unit));
+        assert!(!ServiceView::Others.matches(&device_unit));
+
+        assert!(ServiceView::Services.is_manageable());
+        assert!(!ServiceView::Devices.is_manageable());
+    }
+
+    #[test]
+    fn service_view_cycles_back_to_the_first_variant() {
+        let mut view = ServiceView::Services;
+        for _ in 0..ServiceView::ALL.len() {
+            view = view.next();
+        }
+        assert_eq!(view, ServiceView::Services);
     }
 
     #[test]

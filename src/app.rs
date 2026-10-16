@@ -7,7 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use crate::autostart::{self, AutostartEntry};
 use crate::backups::{self, Backup};
-use crate::filters::{SortBy, StatusFilter, TipFilter};
+use crate::filters::{ServiceView, SortBy, StatusFilter, TipFilter};
 use crate::i18n;
 use crate::privilege::{self, Action};
 use crate::system::{self, Service, SystemData, parse_duration_seconds};
@@ -20,11 +20,18 @@ pub enum Tab {
     Services,
     Autostart,
     Profiles,
+    Backups,
 }
 
 impl Tab {
     /// All tabs in display order.
-    pub const ALL: [Tab; 4] = [Tab::Analysis, Tab::Services, Tab::Autostart, Tab::Profiles];
+    pub const ALL: [Tab; 5] = [
+        Tab::Analysis,
+        Tab::Services,
+        Tab::Autostart,
+        Tab::Profiles,
+        Tab::Backups,
+    ];
 
     /// Label shown in the tab bar.
     pub fn title(self) -> &'static str {
@@ -33,6 +40,7 @@ impl Tab {
             Tab::Services => i18n::t("tab_services"),
             Tab::Autostart => i18n::t("tab_autostart"),
             Tab::Profiles => i18n::t("tab_profiles"),
+            Tab::Backups => i18n::t("tab_backups"),
         }
     }
 
@@ -71,13 +79,6 @@ pub struct InfoPane {
     pub lines: Vec<String>,
     /// Index of the first visible line.
     pub scroll: u16,
-}
-
-/// Which list the Profiles tab is focused on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProfilesView {
-    Profiles,
-    Backups,
 }
 
 /// Work waiting for confirmation and, if necessary, a password.
@@ -131,8 +132,8 @@ pub struct App {
     pub selected: usize,
     /// Selected row in the autostart list.
     pub autostart_selected: usize,
-    /// Which list the Profiles tab is focused on.
-    pub profiles_view: ProfilesView,
+    /// Which unit types the Services tab shows.
+    pub view: ServiceView,
     /// Selected profile in the profiles list.
     pub profiles_selected: usize,
     /// Selected backup in the backups list.
@@ -166,6 +167,8 @@ pub struct App {
     pub running: bool,
     /// Journal/dependency text pane, when open.
     pub info: Option<InfoPane>,
+    /// Text the main loop should put on the system clipboard.
+    clipboard: Option<String>,
     /// Password cached after the first privileged command.
     password: Option<String>,
     /// Work waiting for confirmation and a password.
@@ -183,7 +186,7 @@ impl App {
             data: None,
             selected: 0,
             autostart_selected: 0,
-            profiles_view: ProfilesView::Profiles,
+            view: ServiceView::Services,
             profiles_selected: 0,
             backups_selected: 0,
             form_values: Vec::new(),
@@ -191,8 +194,10 @@ impl App {
             analysis_scroll: 0,
             loading: true,
             status_filter: StatusFilter::All,
-            tip_filter: TipFilter::All,
-            sort: SortBy::Name,
+            // Show the services that can be disabled, slowest first: that is
+            // the list a user comes to this tab for.
+            tip_filter: TipFilter::Suggestion,
+            sort: SortBy::BootTime,
             query: String::new(),
             searching: false,
             reload_requested: false,
@@ -202,6 +207,7 @@ impl App {
             message: None,
             running: false,
             info: None,
+            clipboard: None,
             password: None,
             pending: None,
             command_tx,
@@ -255,7 +261,7 @@ impl App {
 
     // --- Services tab data ---
 
-    /// Services matching the current filters, in the current sort order.
+    /// Services matching the current unit type, filters and sort order.
     pub fn visible_services(&self) -> Vec<&Service> {
         let Some(services) = self.services() else {
             return Vec::new();
@@ -264,6 +270,7 @@ impl App {
         let query = self.query.to_lowercase();
         let mut visible: Vec<&Service> = services
             .iter()
+            .filter(|service| self.view.matches(service))
             .filter(|service| self.status_filter.matches(service))
             .filter(|service| self.tip_filter.matches(service))
             .filter(|service| {
@@ -309,6 +316,18 @@ impl App {
     /// The service currently highlighted in the table.
     pub fn selected_service(&self) -> Option<&Service> {
         self.visible_services().get(self.selected).copied()
+    }
+
+    /// Number of units of the current type, before the filters are applied.
+    ///
+    /// Shown next to the view name as "visible / total".
+    pub fn view_total(&self) -> usize {
+        self.services().map_or(0, |services| {
+            services
+                .iter()
+                .filter(|service| self.view.matches(service))
+                .count()
+        })
     }
 
     // --- Analysis tab data ---
@@ -469,6 +488,39 @@ impl App {
         self.backups().get(self.backups_selected)
     }
 
+    /// Estimated boot-time saving of a profile, in seconds.
+    ///
+    /// Ported from `Controller._calculate_profile_savings`: only services the
+    /// profile disables, that are currently enabled and appear in the boot
+    /// blame list, count towards the total.
+    pub fn profile_savings(&self, profile_id: &str) -> f64 {
+        let Some(profile) = profiles::data().profiles.get(profile_id) else {
+            return 0.0;
+        };
+        let states = self.current_states();
+        let times = self.blame_times();
+
+        profile
+            .services
+            .iter()
+            .filter(|(_, action)| action.as_str() == "disable")
+            .filter_map(|(name, _)| {
+                let (enabled, _) = states.get(name.as_str()).copied()?;
+                if !profiles::is_enabled(enabled) {
+                    return None;
+                }
+                times
+                    .get(name.as_str())
+                    .map(|time| parse_duration_seconds(time))
+            })
+            .sum()
+    }
+
+    /// Take the text the main loop should put on the clipboard, if any.
+    pub fn take_clipboard(&mut self) -> Option<String> {
+        self.clipboard.take()
+    }
+
     /// Current enabled/active state of every known unit.
     fn current_states(&self) -> HashMap<&str, (&str, &str)> {
         self.services()
@@ -553,15 +605,20 @@ impl App {
         report
     }
 
-    /// Write the report next to the working directory and report the path.
+    /// Write the report next to the working directory and copy it as well.
     fn export_report(&mut self) {
         if self.tab != Tab::Analysis {
             return;
         }
 
         let path = report_path();
-        self.message = Some(match std::fs::write(&path, self.report()) {
-            Ok(()) => i18n::fill(i18n::t("tui_report_written"), &[&path]),
+        let report = self.report();
+        self.message = Some(match std::fs::write(&path, &report) {
+            Ok(()) => {
+                // The main loop turns this into an OSC 52 escape sequence.
+                self.clipboard = Some(report);
+                i18n::fill(i18n::t("tui_report_copied"), &[&path])
+            }
             Err(err) => i18n::fill(i18n::t("tui_report_failed"), &[&path, &err.to_string()]),
         });
     }
@@ -616,8 +673,12 @@ impl App {
 
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-            KeyCode::Right | KeyCode::Tab => self.select_next_tab(),
-            KeyCode::Left | KeyCode::BackTab => self.select_previous_tab(),
+            KeyCode::Tab => self.select_next_tab(),
+            KeyCode::BackTab => self.select_previous_tab(),
+            KeyCode::Char(digit @ '1'..='5') => self.select_tab(digit),
+            // Arrows move sideways inside the current tab, never between tabs.
+            KeyCode::Right => self.cycle_view(),
+            KeyCode::Left => self.cycle_view_back(),
             KeyCode::Down | KeyCode::Char('j') => self.move_down(),
             KeyCode::Up | KeyCode::Char('k') => self.move_up(),
             KeyCode::PageDown => self.page_down(),
@@ -645,7 +706,7 @@ impl App {
             KeyCode::Char('?') => self.open_help(),
             KeyCode::Char('L') => self.toggle_language(),
             KeyCode::Char('b') => self.begin_create_backup(),
-            KeyCode::Char('v') => self.toggle_profiles_view(),
+            KeyCode::Char('v') => self.cycle_view(),
             KeyCode::Char(' ') => self.toggle_autostart(),
             KeyCode::Char('n') => self.begin_add_form(),
             KeyCode::Char('x') => self.remove_selected(),
@@ -778,10 +839,16 @@ impl App {
     }
 
     fn open_action_menu(&mut self) {
-        if self.tab == Tab::Services && self.selected_service().is_some() {
-            self.menu_index = 0;
-            self.overlay = Overlay::Menu;
+        if self.tab != Tab::Services || self.selected_service().is_none() {
+            return;
         }
+        // The original application disables the buttons for device units.
+        if !self.view.is_manageable() {
+            self.message = Some(i18n::t("tui_device_not_manageable").to_string());
+            return;
+        }
+        self.menu_index = 0;
+        self.overlay = Overlay::Menu;
     }
 
     /// Stage a single-unit action and ask for confirmation.
@@ -973,15 +1040,16 @@ impl App {
         match self.tab {
             Tab::Services => self.open_action_menu(),
             Tab::Profiles => self.begin_apply_profile(),
+            Tab::Backups => self.begin_restore_backup(),
             _ => {}
         }
     }
 
-    /// d: dependencies on the Services tab, restore on the Profiles tab.
+    /// d: dependencies on the Services tab, restore on the Backups tab.
     fn dependencies_or_restore(&mut self) {
         match self.tab {
             Tab::Services => self.show_dependencies(false),
-            Tab::Profiles => self.begin_restore_backup(),
+            Tab::Backups => self.begin_restore_backup(),
             _ => {}
         }
     }
@@ -990,24 +1058,30 @@ impl App {
     fn remove_selected(&mut self) {
         match self.tab {
             Tab::Autostart => self.begin_remove_autostart(),
-            Tab::Profiles => self.begin_remove_backup(),
+            Tab::Backups => self.begin_remove_backup(),
             _ => {}
         }
     }
 
-    fn toggle_profiles_view(&mut self) {
-        if self.tab != Tab::Profiles {
-            return;
+    /// v or Right: show the next unit type on the Services tab.
+    fn cycle_view(&mut self) {
+        if self.tab == Tab::Services {
+            self.view = self.view.next();
+            self.reset_selection();
         }
-        self.profiles_view = match self.profiles_view {
-            ProfilesView::Profiles => ProfilesView::Backups,
-            ProfilesView::Backups => ProfilesView::Profiles,
-        };
+    }
+
+    /// Left: the same, one unit type back.
+    fn cycle_view_back(&mut self) {
+        if self.tab == Tab::Services {
+            self.view = self.view.previous();
+            self.reset_selection();
+        }
     }
 
     /// Save the current unit-file states as a restore point.
     fn begin_create_backup(&mut self) {
-        if self.tab != Tab::Profiles {
+        if self.tab != Tab::Profiles && self.tab != Tab::Backups {
             return;
         }
         let states = self
@@ -1025,7 +1099,7 @@ impl App {
 
     /// Stage the application of the selected profile.
     fn begin_apply_profile(&mut self) {
-        if self.tab != Tab::Profiles || self.profiles_view != ProfilesView::Profiles {
+        if self.tab != Tab::Profiles {
             return;
         }
         let Some(profile_id) = self.selected_profile() else {
@@ -1045,7 +1119,7 @@ impl App {
 
     /// Stage the restoration of the selected backup.
     fn begin_restore_backup(&mut self) {
-        if self.tab != Tab::Profiles || self.profiles_view != ProfilesView::Backups {
+        if self.tab != Tab::Backups {
             return;
         }
         let Some(backup) = self.selected_backup() else {
@@ -1077,7 +1151,7 @@ impl App {
     }
 
     fn begin_remove_backup(&mut self) {
-        if self.tab != Tab::Profiles || self.profiles_view != ProfilesView::Backups {
+        if self.tab != Tab::Backups {
             return;
         }
         let Some(backup) = self.selected_backup() else {
@@ -1098,11 +1172,13 @@ impl App {
             "tui_help_navigation",
             "tui_help_quit",
             "tui_help_tab",
+            "tui_help_tab_keys",
             "tui_help_move",
             "tui_help_page",
             "tui_help_language",
             "",
             "tui_help_services",
+            "tui_help_view",
             "tui_help_search",
             "tui_help_filters",
             "tui_help_actions",
@@ -1119,8 +1195,8 @@ impl App {
             "tui_help_add_remove",
             "",
             "tui_help_profiles",
-            "tui_help_view",
             "tui_help_apply",
+            "tui_help_backups",
             "tui_help_backup",
             "tui_help_restore",
             "",
@@ -1164,6 +1240,14 @@ impl App {
         self.tab = Tab::ALL[previous];
     }
 
+    /// 1-5: jump straight to a tab.
+    fn select_tab(&mut self, digit: char) {
+        let index = digit as usize - '1' as usize;
+        if let Some(tab) = Tab::ALL.get(index) {
+            self.tab = *tab;
+        }
+    }
+
     fn move_down(&mut self) {
         match self.tab {
             Tab::Services => {
@@ -1179,13 +1263,15 @@ impl App {
                 }
             }
             Tab::Profiles => {
-                let count = self.focused_list_len();
-                let selected = match self.profiles_view {
-                    ProfilesView::Profiles => &mut self.profiles_selected,
-                    ProfilesView::Backups => &mut self.backups_selected,
-                };
+                let count = profiles::ids().len();
                 if count > 0 {
-                    *selected = (*selected + 1).min(count - 1);
+                    self.profiles_selected = (self.profiles_selected + 1).min(count - 1);
+                }
+            }
+            Tab::Backups => {
+                let count = self.backups().len();
+                if count > 0 {
+                    self.backups_selected = (self.backups_selected + 1).min(count - 1);
                 }
             }
             Tab::Analysis => self.scroll_analysis(1),
@@ -1196,22 +1282,9 @@ impl App {
         match self.tab {
             Tab::Services => self.selected = self.selected.saturating_sub(1),
             Tab::Autostart => self.autostart_selected = self.autostart_selected.saturating_sub(1),
-            Tab::Profiles => {
-                let selected = match self.profiles_view {
-                    ProfilesView::Profiles => &mut self.profiles_selected,
-                    ProfilesView::Backups => &mut self.backups_selected,
-                };
-                *selected = selected.saturating_sub(1);
-            }
+            Tab::Profiles => self.profiles_selected = self.profiles_selected.saturating_sub(1),
+            Tab::Backups => self.backups_selected = self.backups_selected.saturating_sub(1),
             Tab::Analysis => self.scroll_analysis(-1),
-        }
-    }
-
-    /// Number of rows in the list the Profiles tab is focused on.
-    fn focused_list_len(&self) -> usize {
-        match self.profiles_view {
-            ProfilesView::Profiles => profiles::ids().len(),
-            ProfilesView::Backups => self.backups().len(),
         }
     }
 

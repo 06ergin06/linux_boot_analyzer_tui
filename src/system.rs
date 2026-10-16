@@ -175,27 +175,27 @@ pub struct Service {
     pub enabled: String,
 }
 
+/// Unit types the original application lists. Slices, timers, paths, scopes and
+/// automounts are dropped so the list stays readable.
+const LISTED_SUFFIXES: [&str; 6] = [
+    ".service", ".mount", ".device", ".swap", ".socket", ".target",
+];
+
+/// Whether a unit is of a type the application shows.
+pub fn is_listed_unit(name: &str) -> bool {
+    LISTED_SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
+}
+
 pub fn services() -> Result<Vec<Service>, String> {
     let units = run(
         "systemctl",
-        &[
-            "list-units",
-            "--type=service",
-            "--all",
-            "--no-pager",
-            "--no-legend",
-        ],
+        &["list-units", "--all", "--no-pager", "--no-legend"],
     )?;
 
-    // `list-unit-files` also reports stopped and disabled services.
+    // `list-unit-files` also reports stopped and disabled units.
     let files = run(
         "systemctl",
-        &[
-            "list-unit-files",
-            "--type=service",
-            "--no-pager",
-            "--no-legend",
-        ],
+        &["list-unit-files", "--no-pager", "--no-legend"],
     )
     .unwrap_or_default();
 
@@ -242,6 +242,9 @@ fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<
     let mut services = Vec::new();
 
     for (name, active, sub, description) in parse_units(units) {
+        if !is_listed_unit(&name) {
+            continue;
+        }
         // Consuming the state here keeps file-only entries in the map below.
         let enabled = file_states
             .remove(&name)
@@ -257,7 +260,7 @@ fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<
 
     for (name, state) in file_states {
         // Template units are never instantiated, so skip them.
-        if name.contains('@') {
+        if name.contains('@') || !is_listed_unit(&name) {
             continue;
         }
         services.push(Service {
@@ -462,6 +465,24 @@ mod tests {
         assert_eq!(services[0].active, "inactive");
         assert_eq!(services[0].enabled, "disabled");
         assert_eq!(services[1].name, "sshd.service");
+    }
+
+    #[test]
+    fn merge_skips_unit_types_the_app_does_not_list() {
+        let units = "● dev-sda.device loaded active plugged Disk\n\
+                     ● systemd-tmpfiles-clean.timer loaded active waiting Cleanup\n\
+                     ● sshd.socket loaded active listening Socket\n";
+        let mut files = HashMap::new();
+        files.insert("foo.slice".to_string(), "static".to_string());
+        files.insert("sshd.socket".to_string(), "enabled".to_string());
+
+        let services = merge_services(units, files);
+        let names: Vec<&str> = services
+            .iter()
+            .map(|service| service.name.as_str())
+            .collect();
+
+        assert_eq!(names, ["dev-sda.device", "sshd.socket"]);
     }
 
     #[test]

@@ -39,10 +39,8 @@ impl Profile {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ProfilesData {
     pub profiles: HashMap<String, Profile>,
-    #[allow(dead_code)]
     #[serde(default)]
     pub safe_to_disable_services: Vec<String>,
-    #[allow(dead_code)]
     #[serde(default)]
     pub profile_service_labels: HashMap<String, String>,
 }
@@ -87,6 +85,36 @@ pub fn selections(profile_id: &str) -> (Vec<String>, Vec<String>) {
 /// Whether a unit-file state means "enabled".
 pub fn is_enabled(state: &str) -> bool {
     state == "enabled" || state == "enabled-runtime"
+}
+
+/// The services a profile touches, as `(wants_enable, label)` pairs.
+///
+/// Ported from the profile card in the original `profiles.py`: services the
+/// profile enables come first (✔), then the ones it disables (✘). The label is
+/// the friendly name from `profile_service_labels` when the original defines
+/// one, otherwise the unit name itself.
+pub fn checklist(profile_id: &str) -> Vec<(bool, &'static str)> {
+    let Some(profile) = data().profiles.get(profile_id) else {
+        return Vec::new();
+    };
+
+    let mut items: Vec<(bool, &'static str)> = profile
+        .services
+        .iter()
+        .map(|(name, action)| (action == "enable", friendly_name(name)))
+        .collect();
+
+    items.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(b.1)));
+    items
+}
+
+/// Friendly label for a unit name, falling back to the unit name itself.
+fn friendly_name(name: &'static str) -> &'static str {
+    let Some(key) = data().profile_service_labels.get(name) else {
+        return name;
+    };
+    let translated = i18n::t(key);
+    if translated == key { name } else { translated }
 }
 
 /// The units to act on when applying a profile or restoring a backup.
@@ -179,5 +207,30 @@ mod tests {
         let plan = Plan::default();
         assert!(plan.is_empty());
         assert!(plan.summary().contains("enable 0"));
+    }
+
+    #[test]
+    fn checklist_uses_friendly_names_and_lists_enables_first() {
+        let items = checklist("minimum");
+        assert!(!items.is_empty());
+
+        // The original application defines a friendly name for bluetooth.
+        assert!(
+            items
+                .iter()
+                .any(|(enable, label)| !enable && *label == "Bluetooth Support"),
+            "items: {items:?}"
+        );
+
+        // Everything enabled comes before the first disabled entry.
+        let first_disable = items.iter().position(|(enable, _)| !enable);
+        if let Some(index) = first_disable {
+            assert!(items[..index].iter().all(|(enable, _)| *enable));
+        }
+    }
+
+    #[test]
+    fn unknown_profile_has_an_empty_checklist() {
+        assert!(checklist("does-not-exist").is_empty());
     }
 }

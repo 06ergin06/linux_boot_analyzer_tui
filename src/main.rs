@@ -4,6 +4,7 @@
 mod app;
 mod autostart;
 mod backups;
+mod clipboard;
 mod filters;
 mod i18n;
 mod privilege;
@@ -48,6 +49,12 @@ fn main() -> io::Result<()> {
             app.poll_data(&receiver);
             app.poll_command();
             terminal.draw(|frame| ui::render(frame, &app))?;
+
+            // Anything the app queued for the clipboard goes out as an OSC 52
+            // escape sequence, after the frame has been painted.
+            if let Some(text) = app.take_clipboard() {
+                clipboard::copy(&text);
+            }
 
             if event::poll(EVENT_POLL)?
                 && let Event::Key(key) = event::read()?

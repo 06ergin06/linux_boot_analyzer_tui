@@ -44,6 +44,8 @@ fn loaded_app(tab: Tab) -> App {
     app.tab = tab;
     app.loading = false;
     app.data = Some(sample_data());
+    // These tests are about layout, not about the default tip filter.
+    app.tip_filter = crate::filters::TipFilter::All;
     app
 }
 
@@ -124,11 +126,41 @@ fn add_form_overlay_shows_both_fields() {
 }
 
 #[test]
-fn profiles_tab_lists_profiles_and_restore_points() {
+fn profiles_tab_lists_profiles_and_their_plan() {
     let app = loaded_app(Tab::Profiles);
-    let text = render_to_string(&app, 110, 24);
+    let text = render_to_string(&app, 120, 24);
     assert!(text.contains("Minimum Services"));
+    assert!(text.contains("Estimated Savings"));
+    assert!(text.contains("✘"));
+}
+
+#[test]
+fn backups_tab_lists_restore_points() {
+    let mut app = loaded_app(Tab::Backups);
+    if let Some(data) = app.data.as_mut() {
+        data.backups = Ok(vec![crate::backups::Backup {
+            name: "backup-1".to_string(),
+            timestamp: "2026-01-01 10:00".to_string(),
+            path: std::path::PathBuf::from("/tmp/backup-1.json"),
+            services: std::collections::BTreeMap::from([(
+                "cups.service".to_string(),
+                "disabled".to_string(),
+            )]),
+        }]);
+    }
+
+    let text = render_to_string(&app, 120, 24);
     assert!(text.contains("Restore Points"));
+    assert!(text.contains("backup-1"));
+    assert!(text.contains("2026-01-01 10:00"));
+}
+
+#[test]
+fn services_title_shows_the_unit_type_and_count() {
+    let app = loaded_app(Tab::Services);
+    let text = render_to_string(&app, 100, 24);
+    assert!(text.contains("Services (.service)"));
+    assert!(text.contains("1/1 services"));
 }
 
 #[test]
@@ -139,13 +171,16 @@ fn action_bar_shows_the_keys_for_the_active_tab() {
 
     let services = render_to_string(&loaded_app(Tab::Services), 120, 24);
     assert!(services.contains("Enter/a: actions"));
-    assert!(services.contains("enable, disable, start, stop"));
+    assert!(services.contains("unit type"));
 
     let autostart = render_to_string(&loaded_app(Tab::Autostart), 120, 24);
     assert!(autostart.contains("space: enable/disable"));
 
     let profiles = render_to_string(&loaded_app(Tab::Profiles), 120, 24);
     assert!(profiles.contains("b: create restore point"));
+
+    let backups = render_to_string(&loaded_app(Tab::Backups), 120, 24);
+    assert!(backups.contains("d: restore"));
 }
 
 #[test]
