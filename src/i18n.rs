@@ -501,14 +501,14 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_bar_global",
-        "q: quit    Tab: tab    ↑/↓: move    ?: help    L: language",
-        "q: çık    Tab: sekme    ↑/↓: gez    ?: yardım    L: dil",
+        "q / Ctrl-C: quit    Tab: tab    ↑/↓: move    ?: help    L: language",
+        "q / Ctrl-C: çık    Tab: sekme    ↑/↓: gez    ?: yardım    L: dil",
     ),
     ("tui_help_navigation", "Navigation", "Gezinme"),
     (
         "tui_help_quit",
-        "  q / Esc          quit",
-        "  q / Esc          çıkış",
+        "  q / Esc / Ctrl-C  quit",
+        "  q / Esc / Ctrl-C  çıkış",
     ),
     (
         "tui_help_tab",

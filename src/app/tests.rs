@@ -247,6 +247,29 @@ fn q_and_escape_quit() {
 }
 
 #[test]
+fn ctrl_c_quits_from_any_screen() {
+    let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+
+    let mut app = App::new();
+    app.handle_key(ctrl_c);
+    assert!(app.should_quit);
+
+    let mut app = app_with_services();
+    app.searching = true;
+    app.handle_key(ctrl_c);
+    assert!(app.should_quit);
+
+    let mut app = app_with_services();
+    app.overlay = Overlay::Confirm;
+    app.handle_key(ctrl_c);
+    assert!(app.should_quit);
+
+    let mut app = app_with_services();
+    app.handle_key(press(KeyCode::Char('c')));
+    assert!(!app.should_quit);
+}
+
+#[test]
 fn row_selection_stays_put_without_data() {
     let mut app = App::new();
     app.handle_key(press(KeyCode::Down));

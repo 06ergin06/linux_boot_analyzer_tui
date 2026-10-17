@@ -62,7 +62,7 @@ screen. The common ones:
 
 | Key | Action |
 | --- | --- |
-| `q` | quit |
+| `q` / `Ctrl-C` | quit |
 | `Tab` | next tab (`1`–`5` jump to one) |
 | `?` | help |
 | `L` | change the language |

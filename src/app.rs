@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::autostart::{self, AutostartEntry};
 use crate::backups::{self, Backup};
@@ -630,6 +630,13 @@ impl App {
     pub fn handle_key(&mut self, key: KeyEvent) {
         // Some platforms report key release as well; only act on presses.
         if key.kind != KeyEventKind::Press {
+            return;
+        }
+
+        // Raw mode hands Ctrl-C over as a key instead of a signal, so it has to
+        // be answered here; it quits from any screen, overlay included.
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            self.should_quit = true;
             return;
         }
 
