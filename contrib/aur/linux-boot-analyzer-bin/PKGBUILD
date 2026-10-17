@@ -19,8 +19,8 @@ _upstream="linux-boot-analyzer-$pkgver"
 
 source_x86_64=("$url/releases/download/v$pkgver/$_upstream-x86_64-unknown-linux-musl.tar.gz")
 source_aarch64=("$url/releases/download/v$pkgver/$_upstream-aarch64-unknown-linux-musl.tar.gz")
-sha256sums_x86_64=('9e097a26e6ce34e0c1c7b81239062d4465cfa6b24ae199307584ef24e7427bf2')
-sha256sums_aarch64=('71d8353b5883fcfed5250842a63441543bf550cc989be4f1c80926e070b55e79')
+sha256sums_x86_64=('6c459f6edcbd5fe9f757f09162a824b2fe5d841d90e8cb612f74d0c95544e34c')
+sha256sums_aarch64=('e1dc1618b7f55480d71fb4d9f5302b9fdf49f89ea1e74c39230f1efaf73ac274')
 
 package() {
     install -Dm755 "$srcdir/$_upstream-$_triple/linux-boot-analyzer" \
