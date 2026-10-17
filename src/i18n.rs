@@ -346,9 +346,7 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Create New Custom Profile",
         "Yeni Özel Profil Oluştur",
     ),
-    ("custom_profilim", "My Custom Profile", "Özel Profilim"),
     ("service_kurali", "service rules", "hizmet kuralı"),
-    ("profili_save_title", "Save Profile", "Profili Kaydet"),
     (
         "yeni_profile_name_girin",
         "Enter new profile name:",
@@ -369,11 +367,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "service_kurallari_sub",
         "On = Enabled, Off = Disabled",
         "Açık = Etkinleştirilir, Kapalı = Devre dışı bırakılır",
-    ),
-    (
-        "profili_kaydedildi",
-        "profile saved.",
-        "profili kaydedildi.",
     ),
     (
         "custom_profile_olusturuldu",
@@ -511,11 +504,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Tab/oklar: gez    boşluk: aç/kapat    Enter: oluştur    Esc: iptal",
     ),
     (
-        "tui_bar_profile_name",
-        "Enter: save    Esc: cancel",
-        "Enter: kaydet    Esc: iptal",
-    ),
-    (
         "tui_bar_delay",
         "digits or Up/Down: seconds    Enter: save    Esc: cancel",
         "rakam veya Yukarı/Aşağı: saniye    Enter: kaydet    Esc: iptal",
@@ -542,8 +530,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_bar_profiles",
-        "Enter: apply    n: new    w: save state    x: delete    b: restore point",
-        "Enter: uygula    n: yeni    w: durum kaydet    x: sil    b: geri yükleme noktası",
+        "Enter: apply    n: new    x: delete    b: restore point",
+        "Enter: uygula    n: yeni    x: sil    b: geri yükleme noktası",
     ),
     (
         "tui_bar_backups",
@@ -655,11 +643,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "tui_help_custom_new",
         "  n                create a custom profile",
         "  n                özel profil oluştur",
-    ),
-    (
-        "tui_help_custom_save",
-        "  w                save the current state as a profile",
-        "  w                mevcut durumu profil olarak kaydet",
     ),
     (
         "tui_help_custom_delete",

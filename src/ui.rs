@@ -691,25 +691,6 @@ fn render_profile_form(frame: &mut Frame, app: &App) {
     );
 }
 
-/// The prompt that names the profile "save current state" writes.
-fn render_profile_name(frame: &mut Frame, app: &App) {
-    let lines = vec![
-        Line::from(i18n::t("yeni_profile_name_girin")),
-        Line::from(app.profile_name.as_str()).style(Style::new().fg(ACCENT)),
-        Line::from(""),
-        Line::from(i18n::t("tui_bar_profile_name")).style(muted()),
-    ];
-
-    let area = centered_rect(50, block_height(&lines, 50), frame.area());
-    frame.render_widget(Clear, area);
-    frame.render_widget(
-        Paragraph::new(lines)
-            .block(panel("profili_save_title"))
-            .wrap(Wrap { trim: true }),
-        area,
-    );
-}
-
 fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(
         Paragraph::new(profile_detail_lines(app))
@@ -859,7 +840,6 @@ fn action_hints(app: &App) -> &'static str {
         Overlay::Form => return i18n::t("tui_bar_form"),
         Overlay::Delay => return i18n::t("tui_bar_delay"),
         Overlay::ProfileForm => return i18n::t("tui_bar_profile_form"),
-        Overlay::ProfileName => return i18n::t("tui_bar_profile_name"),
         Overlay::Language => return i18n::t("tui_bar_language"),
         Overlay::None => {}
     }
@@ -885,7 +865,6 @@ fn render_overlay(frame: &mut Frame, app: &App) {
         Overlay::Password => render_password(frame, app),
         Overlay::Form => render_form(frame, app),
         Overlay::ProfileForm => render_profile_form(frame, app),
-        Overlay::ProfileName => render_profile_name(frame, app),
         Overlay::Delay => render_delay(frame, app),
         Overlay::Language => render_language(frame, app),
     }

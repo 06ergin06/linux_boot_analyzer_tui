@@ -180,6 +180,7 @@ fn action_bar_shows_the_keys_for_the_active_tab() {
     assert!(autostart.contains("space: enable/disable"));
 
     let profiles = render_to_string(&loaded_app(Tab::Profiles), 120, 24);
+    assert!(profiles.contains("n: new"));
     assert!(profiles.contains("b: restore point"));
 
     let backups = render_to_string(&loaded_app(Tab::Backups), 120, 24);
@@ -429,17 +430,4 @@ fn the_new_profile_form_shows_every_candidate_and_its_hint() {
     assert!(text.contains("[ ] Cellular Modem Controller"), "{text}");
     // The key hint is its own bottom row, so it survives a wrapped form.
     assert!(text.contains("Enter: create"), "{text}");
-}
-
-#[test]
-fn the_save_prompt_shows_the_suggested_name() {
-    let mut app = loaded_app(Tab::Profiles);
-    app.overlay = Overlay::ProfileName;
-    app.profile_name = "My Custom Profile".to_string();
-
-    let text = render_to_string(&app, 80, 24);
-
-    assert!(text.contains("Save Profile"), "{text}");
-    assert!(text.contains("My Custom Profile"), "{text}");
-    assert!(text.contains("Enter: save"), "{text}");
 }

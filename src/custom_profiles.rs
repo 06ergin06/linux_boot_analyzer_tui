@@ -4,14 +4,16 @@
 //! `pages/profiles.py`. The file format is the original's
 //! (`{"name": ..., "services": {unit: rule}}`), so a profile file can be
 //! copied between the two applications.
+//!
+//! The original's other creation path, "save the current state as a profile",
+//! is not ported: it produced a narrower copy of a restore point, and a
+//! whole-system snapshot is `backups.rs`' job.
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-
-use crate::service_db;
 
 /// The services the "new profile" form offers, with the i18n key of the label
 /// the original dialog shows for each. A service that is on is enabled by the
@@ -101,29 +103,6 @@ pub fn form_rules(checked: &[bool]) -> BTreeMap<String, String> {
             ((*unit).to_string(), rule.to_string())
         })
         .collect()
-}
-
-/// The rules that describe where the system stands right now.
-///
-/// Ported from `_on_save_custom_profile_clicked`: only the units the knowledge
-/// base knows, and only those whose state is a plain enabled or disabled, are
-/// worth saving.
-pub fn current_rules<'a>(
-    services: impl Iterator<Item = (&'a str, &'a str)>,
-) -> BTreeMap<String, String> {
-    let mut rules = BTreeMap::new();
-    for (name, state) in services {
-        if service_db::lookup(name).is_none() {
-            continue;
-        }
-        let rule = match state {
-            "enabled" | "enabled-runtime" => "enable",
-            "disabled" | "disabled-runtime" => "disable",
-            _ => continue,
-        };
-        rules.insert(name.to_string(), rule.to_string());
-    }
-    rules
 }
 
 fn list_in(dir: &Path) -> Result<Vec<CustomProfile>, String> {
@@ -323,34 +302,6 @@ mod tests {
         );
         assert_eq!(
             rules.get("ModemManager.service").map(String::as_str),
-            Some("disable")
-        );
-    }
-
-    #[test]
-    fn current_rules_keep_known_units_with_a_plain_state() {
-        let rules = current_rules(
-            [
-                ("cups.service", "enabled"),
-                ("docker.service", "enabled-runtime"),
-                ("bluetooth.service", "disabled"),
-                ("ssh.service", "static"),
-                ("not-in-the-knowledge-base.service", "enabled"),
-            ]
-            .into_iter(),
-        );
-
-        assert_eq!(rules.len(), 3);
-        assert_eq!(
-            rules.get("cups.service").map(String::as_str),
-            Some("enable")
-        );
-        assert_eq!(
-            rules.get("docker.service").map(String::as_str),
-            Some("enable")
-        );
-        assert_eq!(
-            rules.get("bluetooth.service").map(String::as_str),
             Some("disable")
         );
     }

@@ -699,20 +699,17 @@ fn the_new_profile_form_toggles_rules_and_demands_a_name() {
 }
 
 #[test]
-fn saving_the_current_state_asks_for_a_name() {
+fn the_profiles_tab_has_no_save_current_state_key() {
     let mut app = app_with_services();
     app.tab = Tab::Profiles;
 
     app.handle_key(press(KeyCode::Char('w')));
 
-    assert_eq!(app.overlay, Overlay::ProfileName);
-    assert_eq!(app.profile_name, "My Custom Profile");
-
-    // The key belongs to the profiles tab, not to the other ones.
-    let mut services = app_with_services();
-    services.tab = Tab::Services;
-    services.handle_key(press(KeyCode::Char('w')));
-    assert_eq!(services.overlay, Overlay::None);
+    // A snapshot of the whole system is what the Backups tab is for, so the
+    // key does nothing here.
+    assert_eq!(app.overlay, Overlay::None);
+    assert!(app.message.is_none());
+    assert!(app.clipboard.is_none());
 }
 
 #[test]

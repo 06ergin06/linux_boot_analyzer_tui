@@ -81,8 +81,6 @@ pub enum Overlay {
     Delay,
     /// Fill in the "new custom profile" form.
     ProfileForm,
-    /// Name the profile "save current state" is about to write.
-    ProfileName,
     /// Choose the interface language.
     Language,
 }
@@ -767,7 +765,6 @@ impl App {
             Overlay::Form => return self.handle_form_key(key),
             Overlay::Delay => return self.handle_delay_key(key),
             Overlay::ProfileForm => return self.handle_profile_form_key(key),
-            Overlay::ProfileName => return self.handle_profile_name_key(key),
             Overlay::Language => return self.handle_language_key(key),
             Overlay::None => {}
         }
@@ -821,7 +818,7 @@ impl App {
                 self.reset_selection();
             }
             KeyCode::Char('o') => self.begin_quick_optimize(),
-            KeyCode::Char('w') => self.write_action(),
+            KeyCode::Char('w') => self.export_report(),
             KeyCode::Char('?') => self.open_help(),
             KeyCode::Char('L') => self.open_language_menu(),
             KeyCode::Char('b') => self.begin_create_backup(),
@@ -1233,16 +1230,6 @@ impl App {
         }
     }
 
-    /// w: write the report (Analysis) or save the current state as a profile
-    /// (Profiles).
-    fn write_action(&mut self) {
-        match self.tab {
-            Tab::Analysis => self.export_report(),
-            Tab::Profiles => self.begin_save_current_profile(),
-            _ => {}
-        }
-    }
-
     /// x: delete the selected autostart entry, custom profile or restore point.
     fn remove_selected(&mut self) {
         match self.tab {
@@ -1383,59 +1370,6 @@ impl App {
         }
     }
 
-    /// w on the Profiles tab: save the current unit states as a profile.
-    fn begin_save_current_profile(&mut self) {
-        // Prefilled with the name the original suggests.
-        self.profile_name = i18n::t("custom_profilim").to_string();
-        self.overlay = Overlay::ProfileName;
-    }
-
-    /// Keys of the "name this profile" prompt.
-    fn handle_profile_name_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc => self.overlay = Overlay::None,
-            KeyCode::Enter => self.submit_profile_name(),
-            KeyCode::Backspace => {
-                self.profile_name.pop();
-            }
-            KeyCode::Char(character) => self.profile_name.push(character),
-            _ => {}
-        }
-    }
-
-    /// Write the profile "save current state" asked for.
-    fn submit_profile_name(&mut self) {
-        let name = self.profile_name.trim().to_string();
-        if name.is_empty() {
-            self.notify(
-                i18n::t("profile_name_girin_error").to_string(),
-                Level::Error,
-            );
-            return;
-        }
-
-        // The original snapshots the units the knowledge base knows, and only
-        // those whose state is a plain enabled or disabled.
-        let services = custom_profiles::current_rules(
-            self.services()
-                .unwrap_or_default()
-                .iter()
-                .map(|service| (service.name.as_str(), service.enabled.as_str())),
-        );
-
-        self.overlay = Overlay::None;
-        match custom_profiles::save(&name, &services) {
-            Ok(_) => {
-                self.notify(
-                    format!("'{name}' {}", i18n::t("profili_kaydedildi")),
-                    Level::Success,
-                );
-                self.reload_requested = true;
-            }
-            Err(error) => self.notify(error, Level::Error),
-        }
-    }
-
     /// x on the Profiles tab: delete the selected custom profile.
     fn begin_remove_custom_profile(&mut self) {
         let Some(profile) = self.selected_custom_profile() else {
@@ -1529,7 +1463,6 @@ impl App {
             "tui_help_profiles",
             "tui_help_apply",
             "tui_help_custom_new",
-            "tui_help_custom_save",
             "tui_help_custom_delete",
             "tui_help_backups",
             "tui_help_backup",
