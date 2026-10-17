@@ -60,8 +60,13 @@ case "$(uname -m)" in
 esac
 
 if [ -z "$version" ]; then
-    url=$(fetch -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest")
-    version="${url##*/tag/}"
+    if [ -n "$token" ]; then
+        version=$(fetch "https://api.github.com/repos/$repo/releases/latest" |
+            sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+    else
+        url=$(fetch -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest")
+        version="${url##*/tag/}"
+    fi
     case "$version" in
         v[0-9]*) ;;
         *)
@@ -76,13 +81,46 @@ version="${version#v}"
 
 archive="$name-$version-$target.tar.gz"
 base="https://github.com/$repo/releases/download/$tag"
+archive_url="$base/$archive"
+sums_url="$base/$archive.sha256"
+
+# A private repository has no anonymous download URL: its assets are served by
+# the API only, so their ids come out of the release JSON.
+asset_url() {
+    printf '%s' "$release" | awk -v want="$1" '
+        match($0, /"url": *"[^"]*\/releases\/assets\/[0-9]+"/) {
+            url = $0
+            sub(/.*"url": *"/, "", url)
+            sub(/".*/, "", url)
+        }
+        $0 ~ ("\"name\": *\"" want "\"") { print url; exit }
+    '
+}
+
+download() {
+    if [ -n "$token" ]; then
+        fetch -H "Accept: application/octet-stream" -o "$2" "$1"
+    else
+        fetch -o "$2" "$1"
+    fi
+}
+
+if [ -n "$token" ]; then
+    release=$(fetch "https://api.github.com/repos/$repo/releases/tags/$tag")
+    archive_url=$(asset_url "$archive")
+    sums_url=$(asset_url "$archive.sha256")
+    if [ -z "$archive_url" ] || [ -z "$sums_url" ]; then
+        echo "release $tag does not carry $archive" >&2
+        exit 1
+    fi
+fi
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 echo "downloading $archive"
-fetch -o "$tmp/$archive" "$base/$archive"
-fetch -o "$tmp/$archive.sha256" "$base/$archive.sha256"
+download "$archive_url" "$tmp/$archive"
+download "$sums_url" "$tmp/$archive.sha256"
 
 expected=$(cut -d' ' -f1 <"$tmp/$archive.sha256")
 actual=$(sha256sum "$tmp/$archive" | cut -d' ' -f1)
