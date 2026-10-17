@@ -9,33 +9,25 @@ use crate::i18n;
 
 const PROFILES_JSON: &str = include_str!("../assets/profiles_data.json");
 
-/// One optimization profile.
 #[derive(Debug, Clone, Deserialize)]
 pub struct Profile {
-    /// i18n key for the profile name, e.g. `prof_min_name`.
     pub name_tr_key: String,
-    /// Icon name; the GTK application draws it, this TUI does not.
     #[allow(dead_code)]
     pub icon: String,
-    /// i18n key for the profile description.
     pub desc_tr_key: String,
-    /// Service name -> wanted unit-file state (`enable` or `disable`).
     pub services: HashMap<String, String>,
 }
 
 impl Profile {
-    /// Profile name in the active language.
     pub fn name(&self) -> &str {
         i18n::t(&self.name_tr_key)
     }
 
-    /// Profile description in the active language.
     pub fn description(&self) -> &str {
         i18n::t(&self.desc_tr_key)
     }
 }
 
-/// The whole `profiles_data.json` file.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ProfilesData {
     pub profiles: HashMap<String, Profile>,
@@ -45,23 +37,19 @@ pub struct ProfilesData {
     pub profile_service_labels: HashMap<String, String>,
 }
 
-static DATA: LazyLock<ProfilesData> = LazyLock::new(|| {
-    // Embedded at build time; fall back to an empty default instead of panicking.
-    serde_json::from_str(PROFILES_JSON).unwrap_or_default()
-});
+static DATA: LazyLock<ProfilesData> =
+    LazyLock::new(|| serde_json::from_str(PROFILES_JSON).unwrap_or_default());
 
 pub fn data() -> &'static ProfilesData {
     &DATA
 }
 
-/// Profile ids in a stable order.
 pub fn ids() -> Vec<&'static str> {
     let mut ids: Vec<&'static str> = data().profiles.keys().map(String::as_str).collect();
     ids.sort_unstable();
     ids
 }
 
-/// The services a profile wants enabled and disabled.
 pub fn selections(profile_id: &str) -> (Vec<String>, Vec<String>) {
     let Some(profile) = data().profiles.get(profile_id) else {
         return (Vec::new(), Vec::new());
@@ -82,17 +70,10 @@ pub fn selections(profile_id: &str) -> (Vec<String>, Vec<String>) {
     (enable, disable)
 }
 
-/// Whether a unit-file state means "enabled".
 pub fn is_enabled(state: &str) -> bool {
     state == "enabled" || state == "enabled-runtime"
 }
 
-/// The services a profile touches, as `(wants_enable, label)` pairs.
-///
-/// Ported from the profile card in the original `profiles.py`: services the
-/// profile enables come first (✔), then the ones it disables (✘). The label is
-/// the friendly name from `profile_service_labels` when the original defines
-/// one, otherwise the unit name itself.
 pub fn checklist(profile_id: &str) -> Vec<(bool, &'static str)> {
     let Some(profile) = data().profiles.get(profile_id) else {
         return Vec::new();
@@ -100,8 +81,6 @@ pub fn checklist(profile_id: &str) -> Vec<(bool, &'static str)> {
     checklist_of(profile.services.iter())
 }
 
-/// The same checklist for an arbitrary set of rules, such as a user's own
-/// profile: services it enables come first (✔), then the ones it disables (✘).
 pub fn checklist_of<'a>(
     services: impl Iterator<Item = (&'a String, &'a String)>,
 ) -> Vec<(bool, &'a str)> {
@@ -113,7 +92,6 @@ pub fn checklist_of<'a>(
     items
 }
 
-/// Friendly label for a unit name, falling back to the unit name itself.
 fn friendly_name(name: &str) -> &str {
     let Some(key) = data().profile_service_labels.get(name) else {
         return name;
@@ -122,10 +100,6 @@ fn friendly_name(name: &str) -> &str {
     if translated == key { name } else { translated }
 }
 
-/// The units to act on when applying a profile or restoring a backup.
-///
-/// Ported from `ProfileManager.apply_profile_batch`, which derives these from
-/// the current unit-file and runtime states.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Plan {
     pub enable: Vec<String>,
@@ -135,7 +109,6 @@ pub struct Plan {
 }
 
 impl Plan {
-    /// Whether the plan would change anything at all.
     pub fn is_empty(&self) -> bool {
         self.enable.is_empty()
             && self.start.is_empty()
@@ -143,7 +116,6 @@ impl Plan {
             && self.stop.is_empty()
     }
 
-    /// One-line summary for the confirmation dialog.
     pub fn summary(&self) -> String {
         format!(
             "{} {} · {} {} · {} {} · {} {}",
@@ -183,7 +155,6 @@ mod tests {
     fn selections_split_enable_and_disable() {
         let (enable, disable) = selections("minimum");
         assert!(!enable.is_empty() || !disable.is_empty());
-        // Every returned name must exist in the profile itself.
         let profile = &data().profiles["minimum"];
         for name in enable.iter().chain(disable.iter()) {
             assert!(profile.services.contains_key(name));
@@ -219,7 +190,6 @@ mod tests {
         let items = checklist("minimum");
         assert!(!items.is_empty());
 
-        // The original application defines a friendly name for bluetooth.
         assert!(
             items
                 .iter()
@@ -227,7 +197,6 @@ mod tests {
             "items: {items:?}"
         );
 
-        // Everything enabled comes before the first disabled entry.
         let first_disable = items.iter().position(|(enable, _)| !enable);
         if let Some(index) = first_disable {
             assert!(items[..index].iter().all(|(enable, _)| *enable));

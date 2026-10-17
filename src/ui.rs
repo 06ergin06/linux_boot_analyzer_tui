@@ -15,57 +15,42 @@ use crate::privilege::Action;
 use crate::system::{self, Service};
 use crate::{profiles, service_db};
 
-// --- Theme ---------------------------------------------------------------
-//
 // Only the sixteen named terminal colours are used, never RGB: the interface
 // then follows whatever palette the user's terminal is themed with instead of
 // looking right on exactly one background. Colour is always a second signal,
 // never the only one - every state is also spelled out in words.
 
-/// Titles, headings and the active tab: where the eye should land first.
 const ACCENT: Color = Color::Cyan;
-/// Secondary text: hints, keys, paths and units that are simply turned off.
 const MUTED: Color = Color::DarkGray;
-/// Healthy: active, enabled, safe to leave alone.
 const OK: Color = Color::Green;
-/// Worth a look: suggestions, masked units, work in progress.
 const WARN: Color = Color::Yellow;
-/// Trouble: failed units, errors, services that must stay on.
 const BAD: Color = Color::Red;
-/// Background of the selected row. Combined with `REVERSED`, so the selection
-/// stays visible even on a terminal that ignores colours.
 const SELECTED: Color = Color::Blue;
 
-/// Style for secondary text.
 fn muted() -> Style {
     Style::new().fg(MUTED)
 }
 
-/// Style for the selected row in a table or list.
 fn highlight() -> Style {
     Style::new()
         .fg(SELECTED)
         .add_modifier(Modifier::REVERSED | Modifier::BOLD)
 }
 
-/// A bordered panel with a coloured title, used for every block in the UI.
 fn panel(key: &str) -> Block<'static> {
     panel_titled(title(key))
 }
 
-/// A bordered panel whose title is built at runtime (unit or backup names).
 fn panel_titled(title: String) -> Block<'static> {
     Block::bordered()
         .title(Line::from(title).style(Style::new().fg(ACCENT).bold()))
         .border_style(muted())
 }
 
-/// Draw the whole interface for one frame.
 pub fn render(frame: &mut Frame, app: &App) {
     let [header, body, footer] = Layout::vertical([
         Constraint::Length(3),
         Constraint::Min(0),
-        // Two lines: the available keys, then the status/hint line.
         Constraint::Length(2),
     ])
     .areas(frame.area());
@@ -115,12 +100,6 @@ fn render_analysis(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-/// Colour one line of the plain-text analysis snapshot.
-///
-/// The text itself comes from `App::analysis_lines`, which the report export
-/// also prints, so this only re-styles it: section headings, `Label: value`
-/// pairs and the right-aligned timings of the blame list are recognised, and
-/// anything else is drawn as it is.
 fn analysis_line(line: &str) -> Line<'static> {
     if line.is_empty() {
         return Line::default();
@@ -140,7 +119,6 @@ fn analysis_line(line: &str) -> Line<'static> {
     let pad = " ".repeat(line.len() - body.len());
 
     if let Some((label, value)) = body.split_once(": ") {
-        // The total boot time is the headline number of the page.
         let value_style = if label == i18n::t("toplam_boot") {
             Style::new().fg(WARN).bold()
         } else {
@@ -163,7 +141,6 @@ fn analysis_line(line: &str) -> Line<'static> {
         ]);
     }
 
-    // The suggestion under a service name is a side note.
     if pad.len() >= 6 {
         return Line::from(line.to_string()).style(muted());
     }
@@ -171,7 +148,6 @@ fn analysis_line(line: &str) -> Line<'static> {
     Line::from(line.to_string())
 }
 
-/// A bordered block title for a translated label.
 fn title(key: &str) -> String {
     format!(" {} ", i18n::t(key))
 }
@@ -199,8 +175,6 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     let visible = app.visible_services();
     let times = app.blame_times();
 
-    // The details grow with the knowledge-base text, so a long description is
-    // never cut off; the table above keeps at least a few rows.
     let detail = service_detail_lines(visible.get(app.selected).copied());
     let [filter_area, table_area, detail_area] = Layout::vertical([
         Constraint::Length(1),
@@ -257,7 +231,6 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
     render_service_detail(frame, &detail, detail_area);
 }
 
-/// `" Services (.service) — 12/450 services "` for the table border.
 fn services_title(app: &App) -> String {
     let count = i18n::fill(
         i18n::t("tui_view_count"),
@@ -286,7 +259,6 @@ fn render_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    // While the search box has focus the query is what the keys edit.
     let (search, search_style) = if app.searching || !app.query.is_empty() {
         (format!("/{}", app.query), Style::new().fg(ACCENT).bold())
     } else {
@@ -306,7 +278,6 @@ fn render_service_detail(frame: &mut Frame, lines: &[Line], area: Rect) {
     );
 }
 
-/// The knowledge-base text for the selected unit.
 fn service_detail_lines(service: Option<&Service>) -> Vec<Line<'_>> {
     match service {
         Some(service) => match service_db::lookup(&service.name) {
@@ -329,7 +300,6 @@ fn service_detail_lines(service: Option<&Service>) -> Vec<Line<'_>> {
     }
 }
 
-/// Colour for a systemd state word: healthy, transitional, off or broken.
 fn state_style(state: &str) -> Style {
     match state {
         "active" | "running" | "enabled" | "enabled-runtime" => Style::new().fg(OK),
@@ -340,7 +310,6 @@ fn state_style(state: &str) -> Style {
     }
 }
 
-/// Boot times that matter stand out, the rest fade into the background.
 fn time_style(time: &str) -> Style {
     if system::parse_duration_seconds(time) >= 1.0 {
         Style::new().fg(WARN)
@@ -349,7 +318,6 @@ fn time_style(time: &str) -> Style {
     }
 }
 
-/// Colour for the knowledge-base tip of a service.
 fn tip_style(tip: service_db::Tip) -> Style {
     match tip {
         service_db::Tip::Critical => Style::new().fg(BAD).bold(),
@@ -358,7 +326,6 @@ fn tip_style(tip: service_db::Tip) -> Style {
     }
 }
 
-/// "`Label`: value" with the label kept quiet.
 fn detail_line(label: &str, value: &str) -> Line<'static> {
     Line::from(vec![
         Span::styled(format!("{label}: "), muted()),
@@ -381,7 +348,6 @@ fn render_autostart(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    // The details (a long command or file path) grow with their content.
     let detail = autostart_detail_lines(app.selected_autostart());
     let [list_area, detail_area] = Layout::vertical([
         Constraint::Min(3),
@@ -438,7 +404,6 @@ fn render_autostart_detail(frame: &mut Frame, lines: &[Line], area: Rect) {
     );
 }
 
-/// The fields of the selected autostart entry.
 fn autostart_detail_lines(entry: Option<&AutostartEntry>) -> Vec<Line<'_>> {
     match entry {
         Some(entry) => vec![
@@ -457,7 +422,6 @@ fn autostart_detail_lines(entry: Option<&AutostartEntry>) -> Vec<Line<'_>> {
     }
 }
 
-/// "enabled" / "disabled" for an autostart entry.
 fn enabled_label(enabled: bool) -> &'static str {
     if enabled {
         i18n::t("tui_enabled")
@@ -474,7 +438,6 @@ fn enabled_style(enabled: bool) -> Style {
     }
 }
 
-/// A pinned delay is a configured value worth noticing; zero stays quiet.
 fn delay_style(delay: u32) -> Style {
     if delay > 0 {
         Style::new().fg(ACCENT)
@@ -483,7 +446,6 @@ fn delay_style(delay: u32) -> Style {
     }
 }
 
-/// Translated label for a systemd unit state; unknown states pass through.
 fn state_label(state: &str) -> &str {
     match state {
         "active" => i18n::t("filter_active"),
@@ -500,8 +462,6 @@ fn render_profiles(frame: &mut Frame, app: &App, area: Rect) {
     let [list_area, detail_area] =
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(area);
 
-    // The ready-made profiles keep their own panel; the user's own profiles are
-    // listed under it so both stay reachable with the same arrow keys.
     let builtin_rows = profiles::ids().len() as u16 + 3;
     let [builtin_area, custom_area] =
         Layout::vertical([Constraint::Length(builtin_rows), Constraint::Min(4)]).areas(list_area);
@@ -571,7 +531,6 @@ fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(table, area, &mut state);
 }
 
-/// The profiles the user saved themselves.
 fn render_custom_profile_list(frame: &mut Frame, app: &App, area: Rect) {
     let profiles = app.custom_profiles();
     let block = panel("user_custom_profilleri");
@@ -603,7 +562,6 @@ fn render_custom_profile_list(frame: &mut Frame, app: &App, area: Rect) {
         .row_highlight_style(highlight())
         .highlight_symbol("> ");
 
-    // The cursor only shows here when it is on one of these rows.
     let selected = app.profiles_selected.checked_sub(profiles::ids().len());
     let mut state = TableState::default().with_selected(selected);
     frame.render_stateful_widget(table, area, &mut state);
@@ -636,8 +594,6 @@ fn render_backup_list(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(table, area, &mut state);
 }
 
-/// The form that makes a new custom profile: a name and one switch per
-/// service the original dialog offers.
 fn render_profile_form(frame: &mut Frame, app: &App) {
     let name_pointer = if app.profile_form_index == 0 {
         ">"
@@ -700,7 +656,6 @@ fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-/// The card of the highlighted profile, ready-made or the user's own.
 fn profile_detail_lines(app: &App) -> Vec<Line<'_>> {
     if let Some(profile) = app.selected_custom_profile() {
         return custom_profile_lines(app, profile);
@@ -723,14 +678,12 @@ fn profile_detail_lines(app: &App) -> Vec<Line<'_>> {
         Line::from(""),
     ];
 
-    // The same ✔/✘ list the profile cards show in the GTK application.
     for line in checklist_lines(profiles::checklist(id)) {
         lines.push(line);
     }
     lines
 }
 
-/// The card of a user-created profile.
 fn custom_profile_lines<'a>(app: &'a App, profile: &'a CustomProfile) -> Vec<Line<'a>> {
     let savings = app.custom_profile_savings(profile);
     let mut lines = vec![
@@ -753,7 +706,6 @@ fn custom_profile_lines<'a>(app: &'a App, profile: &'a CustomProfile) -> Vec<Lin
     lines
 }
 
-/// The ✔/✘ lines of a profile's service rules.
 fn checklist_lines<'a>(items: Vec<(bool, &'a str)>) -> Vec<Line<'a>> {
     items
         .into_iter()
@@ -790,7 +742,6 @@ fn render_backup_detail(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-/// Estimated savings read green when there is something to win.
 fn savings_style(seconds: f64) -> Style {
     if seconds > 0.05 {
         Style::new().fg(OK).bold()
@@ -799,7 +750,6 @@ fn savings_style(seconds: f64) -> Style {
     }
 }
 
-/// `"Estimated Savings: ~1.5s"`, or `< 0.1s` when it is negligible.
 fn savings_line(seconds: f64) -> String {
     if seconds > 0.05 {
         format!("{}: ~{seconds:.1}s", i18n::t("tahmini_saving"))
@@ -814,7 +764,6 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
 
     frame.render_widget(Paragraph::new(action_hints(app)).style(muted()), keys);
 
-    // The status line shows the latest command result when there is one.
     let (status_text, style) = match (&app.message, app.running) {
         (Some(message), _) => (
             message.as_str(),
@@ -831,7 +780,6 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(status_text).style(style), status);
 }
 
-/// The keys that do something right now, so actions are discoverable.
 fn action_hints(app: &App) -> &'static str {
     match app.overlay {
         Overlay::Menu => return i18n::t("tui_bar_menu"),
@@ -870,7 +818,6 @@ fn render_overlay(frame: &mut Frame, app: &App) {
     }
 }
 
-/// The language picker: a small menu like the action menu.
 fn render_language(frame: &mut Frame, app: &App) {
     let area = centered_rect(30, Lang::ALL.len() as u16 + 2, frame.area());
     frame.render_widget(Clear, area);
@@ -908,8 +855,6 @@ fn render_confirm(frame: &mut Frame, app: &App) {
     let prompt = app.confirmation_prompt();
     let keys = i18n::t("tui_confirm_keys");
 
-    // The question and the key hint wrap on narrow dialogs, so size the box to
-    // the rows they need instead of clipping the hint away.
     let width = frame.area().width.min(50);
     let inner_width = width.saturating_sub(2).max(1) as usize;
     let keys_rows = wrapped_rows(keys, inner_width) as u16;
@@ -1026,7 +971,6 @@ fn render_info(frame: &mut Frame, app: &App) {
     frame.render_widget(paragraph, area);
 }
 
-/// Plain text of a styled line, used to measure it.
 fn line_text(line: &Line) -> String {
     line.spans
         .iter()
@@ -1034,8 +978,6 @@ fn line_text(line: &Line) -> String {
         .collect()
 }
 
-/// Height a bordered block needs to draw `lines` at `width` without clipping
-/// any of them, the two border rows included.
 fn block_height(lines: &[Line], width: u16) -> u16 {
     let inner = width.saturating_sub(2).max(1) as usize;
     let rows: usize = lines
@@ -1045,19 +987,13 @@ fn block_height(lines: &[Line], width: u16) -> u16 {
     rows as u16 + 2
 }
 
-/// Height a detail pane should take: as many rows as its content needs, but
-/// never so many that the list above it is squeezed away.
 fn detail_height(lines: &[Line], width: u16, area_height: u16) -> u16 {
     block_height(lines, width)
         .min(area_height.saturating_sub(4))
         .max(4)
 }
 
-/// How many rows `text` needs when wrapped into `width` columns.
-///
-/// The greedy word wrap `Paragraph` draws with `Wrap { trim: true }`: text
-/// breaks at whitespace, runs of spaces stay inside a row (they are not
-/// collapsed), and a word wider than a whole row is split.
+// Must match `Paragraph`'s greedy wrap: runs of spaces stay inside a row.
 fn wrapped_rows(text: &str, width: usize) -> usize {
     if width == 0 {
         return 1;
@@ -1083,7 +1019,6 @@ fn wrapped_rows(text: &str, width: usize) -> usize {
             column = length;
         }
 
-        // A single word can still be wider than the whole row.
         while column > width {
             rows += 1;
             column -= width;
@@ -1095,7 +1030,6 @@ fn wrapped_rows(text: &str, width: usize) -> usize {
     rows
 }
 
-/// A rectangle of the given size, centred inside `area`.
 fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
     let width = width.min(area.width);
     let height = height.min(area.height);

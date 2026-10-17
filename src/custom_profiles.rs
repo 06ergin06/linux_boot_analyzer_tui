@@ -1,13 +1,5 @@
-//! User-created profiles, stored as JSON under the app's config directory.
-//!
-//! Ported from the "User Custom Profiles" half of the Python project's
-//! `pages/profiles.py`. The file format is the original's
-//! (`{"name": ..., "services": {unit: rule}}`), so a profile file can be
-//! copied between the two applications.
-//!
-//! The original's other creation path, "save the current state as a profile",
-//! is not ported: it produced a narrower copy of a restore point, and a
-//! whole-system snapshot is `backups.rs`' job.
+//! User-created profiles: one JSON file per profile under the app's config
+//! directory, in the Python application's own format.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -15,9 +7,6 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// The services the "new profile" form offers, with the i18n key of the label
-/// the original dialog shows for each. A service that is on is enabled by the
-/// profile, a service that is off is disabled by it.
 pub const CANDIDATES: [(&str, &str); 9] = [
     ("cups.service", "cups_service_desc"),
     ("cups-browsed.service", "cups_browsed_desc"),
@@ -30,23 +19,19 @@ pub const CANDIDATES: [(&str, &str); 9] = [
     ("ModemManager.service", "modem_desc"),
 ];
 
-/// One user-created profile.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CustomProfile {
     pub name: String,
-    /// Unit name -> `enable` or `disable`.
     pub services: BTreeMap<String, String>,
     pub path: PathBuf,
 }
 
 impl CustomProfile {
-    /// The units the profile enables and disables.
     pub fn selections(&self) -> (Vec<String>, Vec<String>) {
         selections_of(&self.services)
     }
 }
 
-/// What a profile file holds.
 #[derive(Debug, Deserialize, Serialize)]
 struct ProfileFile {
     name: String,
@@ -54,31 +39,23 @@ struct ProfileFile {
     services: BTreeMap<String, String>,
 }
 
-/// Directory holding the user's own profiles.
 pub fn dir() -> PathBuf {
     let home = std::env::var_os("HOME").unwrap_or_default();
     PathBuf::from(home).join(".config/linux-boot-analyzer-tui/profiles")
 }
 
-/// Every custom profile, ordered by name.
-///
-/// A file that cannot be parsed is skipped, like the original does, so a single
-/// bad file does not hide the others.
 pub fn list() -> Result<Vec<CustomProfile>, String> {
     list_in(&dir())
 }
 
-/// Write a new profile and return the file it went into.
 pub fn save(name: &str, services: &BTreeMap<String, String>) -> Result<PathBuf, String> {
     save_in(&dir(), name, services)
 }
 
-/// Delete a profile file.
 pub fn remove(path: &Path) -> Result<(), String> {
     fs::remove_file(path).map_err(|err| format!("could not remove {}: {err}", path.display()))
 }
 
-/// Split a set of rules into the units to enable and the units to disable.
 pub fn selections_of(services: &BTreeMap<String, String>) -> (Vec<String>, Vec<String>) {
     let mut enable = Vec::new();
     let mut disable = Vec::new();
@@ -92,8 +69,6 @@ pub fn selections_of(services: &BTreeMap<String, String>) -> (Vec<String>, Vec<S
     (enable, disable)
 }
 
-/// The rules the "new profile" form describes: a service that is on is enabled
-/// by the profile, one that is off is disabled by it.
 pub fn form_rules(checked: &[bool]) -> BTreeMap<String, String> {
     CANDIDATES
         .iter()
@@ -108,7 +83,6 @@ pub fn form_rules(checked: &[bool]) -> BTreeMap<String, String> {
 fn list_in(dir: &Path) -> Result<Vec<CustomProfile>, String> {
     let listing = match fs::read_dir(dir) {
         Ok(listing) => listing,
-        // A missing directory just means there is nothing saved yet.
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(err) => return Err(format!("could not read {}: {err}", dir.display())),
     };
@@ -155,7 +129,6 @@ fn save_in(dir: &Path, name: &str, services: &BTreeMap<String, String>) -> Resul
     Ok(path)
 }
 
-/// A filename derived from `name` that does not clash with an existing file.
 fn unique_path(dir: &Path, name: &str) -> PathBuf {
     let slug: String = name
         .chars()
@@ -294,7 +267,6 @@ mod tests {
 
         let rules = form_rules(&checked);
 
-        // Every service the form offers gets a rule, in both directions.
         assert_eq!(rules.len(), CANDIDATES.len());
         assert_eq!(
             rules.get("cups.service").map(String::as_str),

@@ -1,15 +1,8 @@
-//! Copy text to the terminal's clipboard with the OSC 52 escape sequence.
-//!
-//! OSC 52 is understood by most modern terminals and also travels over SSH, so
-//! it works without `xclip`/`wl-copy` or any extra dependency. Terminals that
-//! do not support it simply ignore the sequence.
-//!
-//! Note: inside tmux the escape is only forwarded when the option
-//! `set -g set-clipboard on` is set.
+//! Clipboard through OSC 52: no `xclip`/`wl-copy`, and it travels over SSH.
+//! tmux only forwards the sequence with `set -g set-clipboard on`.
 
 use std::io::Write;
 
-/// Put `text` on the system clipboard.
 pub fn copy(text: &str) {
     let encoded = encode_base64(text.as_bytes());
     let mut stdout = std::io::stdout();
@@ -17,10 +10,8 @@ pub fn copy(text: &str) {
     let _ = stdout.flush();
 }
 
-/// Base64 alphabet, RFC 4648.
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-/// Encode bytes as standard base64 with `=` padding.
 fn encode_base64(data: &[u8]) -> String {
     let mut encoded = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
@@ -62,7 +53,6 @@ mod tests {
 
     #[test]
     fn utf8_text_is_encoded_byte_wise() {
-        // "ş" is two bytes in UTF-8.
         assert_eq!(encode_base64("ş".as_bytes()), "xZ8=");
     }
 }

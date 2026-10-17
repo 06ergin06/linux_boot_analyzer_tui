@@ -1,12 +1,4 @@
-//! Tiny English/Turkish string table.
-//!
-//! The translations are copied from the original GTK application's locale
-//! table (`locale_mgr.py`, `FALLBACK_DICT`) so both programs read the same.
-//! Keys that only exist in this TUI are prefixed with `tui_`.
-//!
-//! The active language is process-wide state. Keys are looked up with [`t`];
-//! a missing key is returned unchanged, so a forgotten translation shows the
-//! key instead of an empty label.
+//! Tiny English/Turkish string table; the active language is process-wide state.
 
 use std::collections::HashMap;
 use std::fs;
@@ -14,7 +6,6 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-/// The languages we ship translations for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
     En,
@@ -22,10 +13,8 @@ pub enum Lang {
 }
 
 impl Lang {
-    /// Every language we ship, in the order the picker lists them.
     pub const ALL: [Lang; 2] = [Lang::En, Lang::Tr];
 
-    /// ISO code, also used in the config file.
     pub fn code(self) -> &'static str {
         match self {
             Lang::En => "en",
@@ -33,7 +22,6 @@ impl Lang {
         }
     }
 
-    /// Name of the language in that language.
     pub fn native_name(self) -> &'static str {
         match self {
             Lang::En => "English",
@@ -50,7 +38,6 @@ impl Lang {
     }
 }
 
-/// key -> (English, Turkish)
 static TABLE: LazyLock<HashMap<&'static str, (&'static str, &'static str)>> = LazyLock::new(|| {
     TRANSLATIONS
         .iter()
@@ -58,10 +45,8 @@ static TABLE: LazyLock<HashMap<&'static str, (&'static str, &'static str)>> = La
         .collect()
 });
 
-/// The active language, defaulting to English until [`init`] runs.
 static ACTIVE: AtomicU8 = AtomicU8::new(0);
 
-/// The language currently in use.
 pub fn lang() -> Lang {
     if ACTIVE.load(Ordering::Relaxed) == 1 {
         Lang::Tr
@@ -70,12 +55,10 @@ pub fn lang() -> Lang {
     }
 }
 
-/// Switch the language (does not persist it, see [`save_preference`]).
 pub fn set_lang(lang: Lang) {
     ACTIVE.store(u8::from(lang == Lang::Tr), Ordering::Relaxed);
 }
 
-/// Translation of `key` in a given language; unknown keys map to themselves.
 pub fn translation(lang: Lang, key: &str) -> &str {
     match TABLE.get(key) {
         Some(&(en, tr)) => match lang {
@@ -86,15 +69,10 @@ pub fn translation(lang: Lang, key: &str) -> &str {
     }
 }
 
-/// Translation of `key` in the active language.
 pub fn t(key: &str) -> &str {
     translation(lang(), key)
 }
 
-/// Fill the `{}` placeholders of a translated template, left to right.
-///
-/// `format!` needs a literal template, so translated templates are filled at
-/// runtime with this helper instead.
 pub fn fill(template: &str, values: &[&str]) -> String {
     let mut text = template.to_string();
     for value in values {
@@ -103,13 +81,11 @@ pub fn fill(template: &str, values: &[&str]) -> String {
     text
 }
 
-/// Switch to `lang` and remember the choice.
 pub fn choose(lang: Lang) {
     set_lang(lang);
     save_preference(lang);
 }
 
-/// Load the saved language, falling back to the system locale.
 pub fn init() {
     set_lang(saved_language().unwrap_or_else(detect_language));
 }
@@ -119,14 +95,12 @@ fn config_path() -> PathBuf {
     PathBuf::from(home).join(".config/linux-boot-analyzer-tui/config.json")
 }
 
-/// The language saved by a previous run, if any.
 fn saved_language() -> Option<Lang> {
     let contents = fs::read_to_string(config_path()).ok()?;
     let json: serde_json::Value = serde_json::from_str(&contents).ok()?;
     Lang::from_code(json.get("lang")?.as_str()?)
 }
 
-/// Guess the language from `LANG`/`LC_ALL`, defaulting to English.
 fn detect_language() -> Lang {
     let value = std::env::var("LC_ALL")
         .or_else(|_| std::env::var("LANG"))
@@ -135,7 +109,6 @@ fn detect_language() -> Lang {
     Lang::from_code(code).unwrap_or(Lang::En)
 }
 
-/// Remember the language choice for the next run.
 pub fn save_preference(lang: Lang) {
     let path = config_path();
     if let Some(parent) = path.parent() {
@@ -144,15 +117,12 @@ pub fn save_preference(lang: Lang) {
     let _ = fs::write(path, format!("{{\n  \"lang\": \"{}\"\n}}\n", lang.code()));
 }
 
-/// The string table: (key, English, Turkish).
 const TRANSLATIONS: &[(&str, &str, &str)] = &[
-    // --- Tab titles -------------------------------------------------------
     ("tab_analysis", "Analysis", "Analiz"),
     ("tab_services", "Services", "Servisler"),
     ("tab_autostart", "Autostart", "Başlangıç"),
     ("tab_profiles", "Profiles", "Profiller"),
     ("tab_backups", "Backups", "Yedekler"),
-    // --- Services unit types ----------------------------------------------
     (
         "view_services",
         "Services (.service)",
@@ -171,7 +141,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Aygıt birimleri buradan yönetilemez.",
     ),
     ("sub_state", "Sub State", "Alt Durum"),
-    // --- Analysis page ----------------------------------------------------
     ("tui_system", "System", "Sistem"),
     ("sys_os", "OS:", "Sistem:"),
     ("sys_kernel", "Kernel:", "Çekirdek:"),
@@ -214,7 +183,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Önerilen hizmetler:",
     ),
     ("tui_second", "s", "sn"),
-    // --- Services page ----------------------------------------------------
     ("service_name", "Service", "Hizmet"),
     ("filter_active", "Active", "Aktif"),
     ("tui_boot_config", "Enabled", "Etkin"),
@@ -251,7 +219,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "No service selected.",
         "Servis seçilmedi.",
     ),
-    // --- Actions ----------------------------------------------------------
     ("tui_action_enable", "Enable", "Etkinleştir"),
     ("tui_action_disable", "Disable", "Kapat"),
     ("tui_action_start", "Start", "Başlat"),
@@ -290,7 +257,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "{} önerilen hizmet kapatılsın mı?",
     ),
     ("tui_prompt_confirm", "Confirm?", "Onayla?"),
-    // --- Autostart page ---------------------------------------------------
     ("state", "State", "Durum"),
     ("delay", "Delay", "Gecikme"),
     ("komut", "Command", "Komut"),
@@ -307,7 +273,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "No startup application found. Press 'n' to add one.",
         "Otomatik başlatılan uygulama yok. Eklemek için 'n' tuşuna basın.",
     ),
-    // --- Profiles and backups --------------------------------------------
     (
         "profiller_title",
         "System Boot Profiles",
@@ -378,7 +343,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Custom profile deleted.",
         "Özel profil silindi.",
     ),
-    // --- Overlays ---------------------------------------------------------
     ("tui_confirm", "Confirm", "Onayla"),
     (
         "tui_confirm_keys",
@@ -401,7 +365,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Enter the delay as a whole number of seconds.",
         "Gecikmeyi saniye cinsinden tam sayı olarak girin.",
     ),
-    // --- Status messages --------------------------------------------------
     ("tui_loading", "Loading...", "Yükleniyor..."),
     ("tui_no_data", "No data available.", "Veri yok."),
     ("tui_running", "Running...", "Çalışıyor..."),
@@ -461,7 +424,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     ("tui_language_title", "Language", "Dil"),
     ("tui_language_set", "Language: {}", "Dil: {}"),
-    // --- Report -----------------------------------------------------------
     (
         "tui_report_title",
         "Linux Boot Analysis Report",
@@ -472,7 +434,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Generated by linux_boot_analyzer_tui",
         "linux_boot_analyzer_tui tarafından oluşturuldu",
     ),
-    // --- Footer: contextual action bar ------------------------------------
     (
         "tui_bar_menu",
         "Enter: choose    Up/Down: move    Esc: cancel",
@@ -543,7 +504,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "q: quit    Tab: tab    ↑/↓: move    ?: help    L: language",
         "q: çık    Tab: sekme    ↑/↓: gez    ?: yardım    L: dil",
     ),
-    // --- Help overlay -----------------------------------------------------
     ("tui_help_navigation", "Navigation", "Gezinme"),
     (
         "tui_help_quit",
@@ -710,7 +670,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Restore this backup? ({})",
         "Bu yedek noktasına dönülsün mü? ({})",
     ),
-    // --- Info pane, overlays and titles ----------------------------------
     ("tui_help_title", "Help", "Yardım"),
     ("tui_authentication", "Authentication", "Kimlik Doğrulama"),
     ("tui_sudo_password", "sudo password:", "sudo şifresi:"),
@@ -735,7 +694,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Disabled {} service(s).",
         "{} hizmet kapatıldı.",
     ),
-    // --- Profile names and descriptions (same keys as the GTK app) --------
     ("prof_min_name", "Minimum Services", "Minimum Servis Modu"),
     (
         "prof_min_desc",
@@ -755,7 +713,6 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Ofis işleri ve günlük kullanım için ideal ayarlar. Yazıcı, bluetooth ve ağ servisleri açık kalır.",
     ),
     ("tahmini_saving", "Estimated Savings", "Tahmini Kazanç"),
-    // Friendly names used by the profile checklist (same keys as the GTK app).
     (
         "cups_service_desc",
         "Printer Service (CUPS)",
@@ -812,7 +769,6 @@ mod tests {
 
     #[test]
     fn duplicate_keys_are_rejected_by_the_map() {
-        // Build the map again and make sure every literal key is unique.
         let mut seen = std::collections::HashSet::new();
         for (key, _, _) in TRANSLATIONS {
             assert!(seen.insert(*key), "duplicate key: {key}");
@@ -836,7 +792,6 @@ mod tests {
 
     #[test]
     fn every_language_is_listed_once() {
-        // The picker offers exactly these, in this order.
         assert_eq!(Lang::ALL, [Lang::En, Lang::Tr]);
         assert_eq!(Lang::Tr.code(), "tr");
         assert_eq!(Lang::Tr.native_name(), "Türkçe");
@@ -844,7 +799,7 @@ mod tests {
 
     #[test]
     fn detects_language_from_a_locale_name() {
-        assert_eq!(Lang::from_code("tr_TR.UTF-8"), None); // full locale names are not codes
+        assert_eq!(Lang::from_code("tr_TR.UTF-8"), None);
         assert_eq!(Lang::from_code("tr"), Some(Lang::Tr));
         assert_eq!(Lang::from_code("EN"), Some(Lang::En));
         assert_eq!(Lang::from_code("de"), None);

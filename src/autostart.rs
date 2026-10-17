@@ -1,11 +1,8 @@
 //! Reads and edits `~/.config/autostart/*.desktop` entries.
-//!
-//! Ported from the Python project's `autostart_manager.py`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// One autostart entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutostartEntry {
     pub path: PathBuf,
@@ -13,23 +10,19 @@ pub struct AutostartEntry {
     pub exec: String,
     pub comment: String,
     pub icon: String,
-    /// Seconds to wait before launching, from the `sleep` wrapper/delay key.
     pub delay: u32,
     pub enabled: bool,
 }
 
-/// The user's autostart directory.
 pub fn dir() -> PathBuf {
     let home = std::env::var_os("HOME").unwrap_or_default();
     PathBuf::from(home).join(".config/autostart")
 }
 
-/// Every `.desktop` entry in the autostart directory.
 pub fn entries() -> Result<Vec<AutostartEntry>, String> {
     let dir = dir();
     let listing = match fs::read_dir(&dir) {
         Ok(listing) => listing,
-        // A missing directory just means there is nothing to autostart.
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(err) => return Err(format!("could not read {}: {err}", dir.display())),
     };
@@ -49,7 +42,6 @@ pub fn entries() -> Result<Vec<AutostartEntry>, String> {
     Ok(entries)
 }
 
-/// Parse one `.desktop` file.
 pub fn parse(path: &Path, contents: &str) -> AutostartEntry {
     let mut entry = AutostartEntry {
         path: path.to_path_buf(),
@@ -95,11 +87,6 @@ pub fn parse(path: &Path, contents: &str) -> AutostartEntry {
     entry
 }
 
-/// The lines of the `[Desktop Entry]` group.
-///
-/// A desktop file may hold other groups (`[Desktop Action ...]`) with keys of
-/// the same name; only the entry group describes the autostart entry itself.
-/// Lines before the first group header count as part of it.
 fn entry_lines(contents: &str) -> impl Iterator<Item = &str> {
     let mut in_entry = true;
     contents.lines().filter(move |line| {
@@ -112,11 +99,6 @@ fn entry_lines(contents: &str) -> impl Iterator<Item = &str> {
     })
 }
 
-/// Split a `sh -c "sleep 5 && app"` wrapper into its delay and the command.
-///
-/// Both the double-quoted form the original application writes and the
-/// single-quoted form this module writes are recognised; anything else is
-/// returned unchanged with a delay of zero.
 fn split_delay(exec: &str) -> (u32, String) {
     let original = exec.to_string();
     let Some((body, single_quoted)) = sh_c_body(exec) else {
@@ -144,7 +126,6 @@ fn split_delay(exec: &str) -> (u32, String) {
     (delay, unescape(command, single_quoted))
 }
 
-/// The body of a `sh -c "..."` (or `sh -c '...'`) command, and the quote used.
 fn sh_c_body(exec: &str) -> Option<(&str, bool)> {
     let rest = exec.trim().strip_prefix("sh -c ")?;
     let rest = rest.trim();
@@ -157,7 +138,6 @@ fn sh_c_body(exec: &str) -> Option<(&str, bool)> {
     Some((body, quote == '\''))
 }
 
-/// Undo the quoting of a command read out of a wrapper.
 fn unescape(command: &str, single_quoted: bool) -> String {
     if single_quoted {
         // Inside single quotes every character is literal; the quote itself is
@@ -165,7 +145,6 @@ fn unescape(command: &str, single_quoted: bool) -> String {
         return command.replace("'\\''", "'");
     }
 
-    // The double-quoted form only escapes these two characters.
     let mut out = String::with_capacity(command.len());
     let mut chars = command.chars();
     while let Some(current) = chars.next() {
@@ -186,23 +165,20 @@ fn unescape(command: &str, single_quoted: bool) -> String {
     out
 }
 
-/// The `Exec=` value: the command, wrapped in a shell that waits first.
+// The `Exec=` value: a `sh -c 'sleep N && cmd'` wrapper when there is a delay.
 fn exec_line(command: &str, delay: u32) -> String {
     if delay == 0 || command.trim().is_empty() {
         return command.to_string();
     }
 
-    // A single-quoted body needs no escaping except for the quote itself.
     let quoted = command.replace('\'', "'\\''");
     format!("sh -c 'sleep {delay} && {quoted}'")
 }
 
-/// GNOME's text for a boolean key.
 fn bool_text(value: bool) -> String {
     if value { "true" } else { "false" }.to_string()
 }
 
-/// Render an entry as the body of a new `.desktop` file.
 fn render(name: &str, exec: &str, comment: &str, icon: &str, enabled: bool, delay: u32) -> String {
     let mut lines = vec![
         "[Desktop Entry]".to_string(),
@@ -220,7 +196,6 @@ fn render(name: &str, exec: &str, comment: &str, icon: &str, enabled: bool, dela
     lines.join("\n") + "\n"
 }
 
-/// Create a new autostart entry and return the file written.
 pub fn add(name: &str, command: &str) -> Result<PathBuf, String> {
     let dir = dir();
     fs::create_dir_all(&dir).map_err(|err| format!("could not create {}: {err}", dir.display()))?;
@@ -233,26 +208,18 @@ pub fn add(name: &str, command: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-/// Remove an entry.
 pub fn remove(path: &Path) -> Result<(), String> {
     fs::remove_file(path).map_err(|err| format!("could not remove {}: {err}", path.display()))
 }
 
-/// Rewrite an entry with a new enabled state.
 pub fn set_enabled(entry: &AutostartEntry, enabled: bool) -> Result<(), String> {
     save(entry, enabled, entry.delay)
 }
 
-/// Rewrite an entry with a new delay.
 pub fn set_delay(entry: &AutostartEntry, delay: u32) -> Result<(), String> {
     save(entry, entry.enabled, delay)
 }
 
-/// Save `enabled` and `delay` into the entry's file.
-///
-/// The file is read back and only the keys this module owns are replaced, so
-/// a setting another tool wrote (`OnlyShowIn`, `Name[tr]`, a desktop action,
-/// ...) survives the edit.
 fn save(entry: &AutostartEntry, enabled: bool, delay: u32) -> Result<(), String> {
     let contents = fs::read_to_string(&entry.path)
         .map_err(|err| format!("could not read {}: {err}", entry.path.display()))?;
@@ -261,7 +228,6 @@ fn save(entry: &AutostartEntry, enabled: bool, delay: u32) -> Result<(), String>
         .map_err(|err| format!("could not write {}: {err}", entry.path.display()))
 }
 
-/// `contents` with the owned keys set to the wanted values.
 fn update(contents: &str, entry: &AutostartEntry, enabled: bool, delay: u32) -> String {
     let fields: [(&str, String); 4] = [
         ("Exec", exec_line(&entry.exec, delay)),
@@ -312,7 +278,6 @@ fn update(contents: &str, entry: &AutostartEntry, enabled: bool, delay: u32) -> 
         .collect();
 
     if !missing.is_empty() {
-        // Somewhere inside the entry group, not after a later group.
         let at = lines
             .iter()
             .position(|line| line.trim() == "[Desktop Entry]")
@@ -325,7 +290,6 @@ fn update(contents: &str, entry: &AutostartEntry, enabled: bool, delay: u32) -> 
     text
 }
 
-/// A filename derived from `name` that does not clash with an existing file.
 fn unique_path(dir: &Path, name: &str) -> PathBuf {
     let slug: String = name
         .chars()
@@ -351,7 +315,6 @@ fn unique_path(dir: &Path, name: &str) -> PathBuf {
 mod tests {
     use super::*;
 
-    /// Write `contents` to a temporary file and return its path.
     fn temp_entry(case: &str, contents: &str) -> PathBuf {
         let path = std::env::temp_dir().join(format!("opencode-autostart-{case}.desktop"));
         fs::write(&path, contents).expect("temporary file must be writable");
@@ -460,7 +423,6 @@ mod tests {
         assert!(saved.contains("OnlyShowIn=GNOME;\n"), "{saved}");
         assert!(saved.contains("Exec=sh -c 'sleep 4 && app'\n"), "{saved}");
         assert!(saved.contains("X-GNOME-Autostart-Delay=4\n"), "{saved}");
-        // The action's own command is in another group and stays untouched.
         assert!(saved.contains("Exec=other-action\n"), "{saved}");
         assert!(saved.contains("[Desktop Action extra]\n"), "{saved}");
     }
@@ -499,7 +461,6 @@ mod tests {
             saved.contains("X-GNOME-Autostart-enabled=false\n"),
             "{saved}"
         );
-        // The file never used the other key, so it is not invented.
         assert!(!saved.contains("Hidden="), "{saved}");
         assert!(!parse(&path, &saved).enabled);
     }

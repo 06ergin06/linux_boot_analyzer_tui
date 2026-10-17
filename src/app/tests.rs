@@ -54,12 +54,10 @@ fn app_with_services() -> App {
         backups: Ok(Vec::new()),
         custom_profiles: Ok(Vec::new()),
     });
-    // The helper is about the table, not about the default tip filter.
     app.tip_filter = TipFilter::All;
     app
 }
 
-/// Add one device unit to the snapshot, for the unit-type views.
 fn add_device(app: &mut App) {
     if let Some(data) = app.data.as_mut()
         && let Ok(services) = &mut data.services
@@ -74,7 +72,6 @@ fn add_device(app: &mut App) {
     }
 }
 
-/// Add a restore point that wants `cups.service` disabled.
 fn add_backup(app: &mut App) {
     if let Some(data) = app.data.as_mut() {
         data.backups = Ok(vec![Backup {
@@ -86,7 +83,6 @@ fn add_backup(app: &mut App) {
     }
 }
 
-/// Add a currently enabled `cups.service`.
 fn add_cups(app: &mut App) {
     if let Some(data) = app.data.as_mut()
         && let Ok(services) = &mut data.services
@@ -101,7 +97,6 @@ fn add_cups(app: &mut App) {
     }
 }
 
-/// Add one service from the "safe to disable" list to the snapshot.
 fn add_optimizable(app: &mut App) {
     if let Some(data) = app.data.as_mut() {
         if let Ok(services) = &mut data.services {
@@ -188,7 +183,6 @@ fn arrows_and_v_cycle_the_unit_view_on_the_services_tab() {
     assert_eq!(app.view, ServiceView::Others);
     app.handle_key(press(KeyCode::Left));
     assert_eq!(app.view, ServiceView::Services);
-    // Changing the view puts the selection back at the top.
     assert_eq!(app.selected, 0);
 
     app.handle_key(press(KeyCode::Char('v')));
@@ -236,7 +230,6 @@ fn a_second_command_is_refused_while_one_runs() {
         path: PathBuf::from("/tmp/opencode-busy-backup.json"),
     });
 
-    // The job is dropped and the reason is shown; nothing was started.
     assert!(app.running);
     assert_eq!(
         app.message.as_deref(),
@@ -431,7 +424,6 @@ fn export_report_writes_a_file_and_copies_it() {
     assert!(contents.contains("Linux Boot Analysis Report"));
     let _ = std::fs::remove_file(&path);
 
-    // The same text is queued for the main loop to put on the clipboard.
     assert_eq!(app.take_clipboard().as_deref(), Some(contents.as_str()));
     assert!(app.take_clipboard().is_none());
 }
@@ -458,11 +450,8 @@ fn boot_stages_use_the_translated_labels() {
     }
 
     let text = app.analysis_lines().join("\n");
-    // The breakdown is labelled from the comp_* entries, not with the English
-    // words systemd prints.
     assert!(text.contains("Firmware: 3.1s"), "{text}");
     assert!(text.contains("Userspace: 12.0s"), "{text}");
-    // The raw systemd line stays above it, unchanged.
     assert!(text.contains("(firmware)"), "{text}");
 }
 
@@ -530,8 +519,6 @@ fn profiles_savings_count_enabled_slow_services() {
     let mut app = app_with_services();
     add_optimizable(&mut app);
 
-    // The "minimum" profile disables bluetooth.service, which is enabled and
-    // takes 1.5s of the boot here.
     assert!((app.profile_savings("minimum") - 1.5).abs() < 1e-9);
     assert_eq!(app.profile_savings("does-not-exist"), 0.0);
 }
@@ -583,7 +570,6 @@ fn applying_a_profile_confirms_with_a_plan() {
     let mut app = app_with_services();
     app.tab = Tab::Profiles;
 
-    // cups.service belongs to the "minimum" profile and is enabled here.
     add_cups(&mut app);
 
     assert_eq!(app.selected_profile(), Some("minimum"));
@@ -596,7 +582,6 @@ fn applying_a_profile_confirms_with_a_plan() {
     assert!(app.confirmation_prompt().starts_with("Apply this profile?"));
 }
 
-/// Add one profile the user saved themselves.
 fn add_custom_profile(app: &mut App, name: &str, services: &[(&str, &str)]) {
     if let Some(data) = app.data.as_mut() {
         data.custom_profiles = Ok(vec![CustomProfile {
@@ -616,7 +601,6 @@ fn profile_navigation_spans_both_groups() {
     add_custom_profile(&mut app, "Mine", &[("cups.service", "disable")]);
     app.tab = Tab::Profiles;
 
-    // The cursor does not stop at the last built-in profile.
     for _ in 0..profiles::ids().len() {
         app.handle_key(press(KeyCode::Char('j')));
     }
@@ -628,7 +612,6 @@ fn profile_navigation_spans_both_groups() {
     );
     assert!(app.selected_profile().is_none());
 
-    // ...and it does not run past the last one either.
     app.handle_key(press(KeyCode::Char('j')));
     assert_eq!(app.profiles_selected, app.profile_count() - 1);
 }
@@ -684,7 +667,6 @@ fn the_new_profile_form_toggles_rules_and_demands_a_name() {
     assert_eq!(app.profile_form_index, 0);
     assert!(app.profile_form_checked.iter().all(|checked| !checked));
 
-    // The first row is the name; space only toggles the rule rows.
     app.handle_key(press(KeyCode::Char(' ')));
     assert!(app.profile_form_checked.iter().all(|checked| !checked));
 
@@ -692,7 +674,6 @@ fn the_new_profile_form_toggles_rules_and_demands_a_name() {
     app.handle_key(press(KeyCode::Char(' ')));
     assert!(app.profile_form_checked[0]);
 
-    // An empty name is refused instead of writing a file.
     app.handle_key(press(KeyCode::Enter));
     assert_eq!(app.overlay, Overlay::ProfileForm);
     assert_eq!(app.message.as_deref(), Some("Please enter a profile name."));
@@ -705,8 +686,6 @@ fn the_profiles_tab_has_no_save_current_state_key() {
 
     app.handle_key(press(KeyCode::Char('w')));
 
-    // A snapshot of the whole system is what the Backups tab is for, so the
-    // key does nothing here.
     assert_eq!(app.overlay, Overlay::None);
     assert!(app.message.is_none());
     assert!(app.clipboard.is_none());
@@ -727,7 +706,6 @@ fn help_opens_in_the_info_pane() {
 fn plan_ignores_services_already_in_the_wanted_state() {
     let mut app = app_with_services();
 
-    // Already disabled, so the "minimum" profile has nothing to do for it.
     if let Some(data) = app.data.as_mut()
         && let Ok(services) = &mut data.services
     {
@@ -798,7 +776,6 @@ fn arrows_step_the_delay_by_one_second() {
     app.handle_key(press(KeyCode::Down));
     assert_eq!(app.delay_input, "1");
 
-    // Zero is the floor and an empty field counts as zero.
     for _ in 0..5 {
         app.handle_key(press(KeyCode::Down));
     }
@@ -825,7 +802,6 @@ fn saving_a_typed_delay_writes_the_entry() {
     let mut app = app_with_services();
     app.tab = Tab::Autostart;
 
-    // `save` edits the file in place, so the entry has to exist on disk.
     let path = std::env::temp_dir().join("opencode-delay-test.desktop");
     std::fs::write(&path, "[Desktop Entry]\nName=Example\nExec=example\n")
         .expect("temporary entry");
@@ -859,9 +835,8 @@ fn the_language_picker_opens_on_the_current_language() {
     app.handle_key(press(KeyCode::Char('L')));
 
     assert_eq!(app.overlay, Overlay::Language);
-    assert_eq!(app.language_index, 0); // English is active in the test suite
+    assert_eq!(app.language_index, 0);
 
-    // The arrows move inside the menu and never past its ends.
     app.handle_key(press(KeyCode::Down));
     assert_eq!(app.language_index, 1);
     app.handle_key(press(KeyCode::Down));

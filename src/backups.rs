@@ -1,6 +1,4 @@
 //! Restore points: snapshots of unit-file states under the user's config dir.
-//!
-//! Ported from the backup half of the Python project's `profile_manager.py`.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -9,17 +7,14 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
-/// A saved snapshot of unit-file states.
 #[derive(Debug, Clone)]
 pub struct Backup {
     pub timestamp: String,
     pub name: String,
-    /// Unit name -> unit-file state at the time of the snapshot.
     pub services: BTreeMap<String, String>,
     pub path: PathBuf,
 }
 
-/// On-disk representation of a backup.
 #[derive(Debug, Deserialize, Serialize)]
 struct BackupFile {
     timestamp: String,
@@ -27,13 +22,11 @@ struct BackupFile {
     services: BTreeMap<String, String>,
 }
 
-/// Directory holding the restore points.
 pub fn dir() -> PathBuf {
     let home = std::env::var_os("HOME").unwrap_or_default();
     PathBuf::from(home).join(".config/linux-boot-analyzer-tui/backups")
 }
 
-/// All restore points, newest first.
 pub fn list() -> Result<Vec<Backup>, String> {
     let dir = dir();
     let listing = match fs::read_dir(&dir) {
@@ -69,7 +62,6 @@ pub fn list() -> Result<Vec<Backup>, String> {
     Ok(backups)
 }
 
-/// Save a new restore point and return it.
 pub fn create(services: BTreeMap<String, String>) -> Result<Backup, String> {
     let dir = dir();
     fs::create_dir_all(&dir).map_err(|err| format!("could not create {}: {err}", dir.display()))?;
@@ -95,12 +87,10 @@ pub fn create(services: BTreeMap<String, String>) -> Result<Backup, String> {
     })
 }
 
-/// Delete a restore point.
 pub fn remove(path: &Path) -> Result<(), String> {
     fs::remove_file(path).map_err(|err| format!("could not remove {}: {err}", path.display()))
 }
 
-/// A filename-safe timestamp plus a human-readable one.
 fn now() -> (String, String) {
     const FORMAT: &str = "+%Y-%m-%d_%H-%M-%S|%d.%m.%Y %H:%M:%S";
 

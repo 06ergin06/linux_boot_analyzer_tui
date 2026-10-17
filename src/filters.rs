@@ -4,7 +4,6 @@ use crate::i18n;
 use crate::service_db::{self, Tip};
 use crate::system::Service;
 
-/// Which unit/runtime state to show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatusFilter {
     All,
@@ -52,7 +51,6 @@ impl StatusFilter {
     }
 }
 
-/// Filter by the knowledge-base classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TipFilter {
     All,
@@ -103,10 +101,6 @@ impl TipFilter {
     }
 }
 
-/// Which unit types the Services tab lists.
-///
-/// Ported from the original application's view selector, which shows services,
-/// "other" units (sockets, targets, mounts, swaps) or device units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceView {
     Services,
@@ -141,7 +135,6 @@ impl ServiceView {
         Self::ALL.iter().position(|view| *view == self).unwrap_or(0)
     }
 
-    /// Whether a unit belongs to this view.
     pub fn matches(self, service: &Service) -> bool {
         match self {
             ServiceView::Services => service.name.ends_with(".service"),
@@ -152,13 +145,11 @@ impl ServiceView {
         }
     }
 
-    /// Whether the units in this view can be enabled, started or masked.
     pub fn is_manageable(self) -> bool {
         self != ServiceView::Devices
     }
 }
 
-/// Sort order for the services table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortBy {
     Name,
@@ -206,7 +197,6 @@ mod tests {
 
     #[test]
     fn tip_filter_uses_the_knowledge_base() {
-        // NetworkManager.service is classified as Critical in services_data.json.
         let network_manager = service("NetworkManager.service", "active", "enabled");
         assert!(TipFilter::Critical.matches(&network_manager));
         assert!(!TipFilter::Suggestion.matches(&network_manager));

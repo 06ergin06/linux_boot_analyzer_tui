@@ -1,7 +1,4 @@
-//! Reads boot timing and systemd service information from the running system.
-//!
-//! Ported from the Python project's `system_manager.py`. Commands run with
-//! `LC_ALL=C` so that output and our parsing stay stable across locales.
+//! Reads boot timing and systemd service information; commands run with `LC_ALL=C`.
 
 use std::collections::HashMap;
 use std::fs;
@@ -12,7 +9,6 @@ use crate::backups::{self, Backup};
 use crate::custom_profiles::{self, CustomProfile};
 use crate::privilege;
 
-/// Everything the UI needs, gathered on a background thread.
 pub struct SystemData {
     pub info: SystemInfo,
     pub boot: Result<BootSummary, String>,
@@ -23,7 +19,6 @@ pub struct SystemData {
     pub custom_profiles: Result<Vec<CustomProfile>, String>,
 }
 
-/// Gather all data. Each section can fail independently.
 pub fn load() -> SystemData {
     SystemData {
         info: system_info(),
@@ -36,7 +31,6 @@ pub fn load() -> SystemData {
     }
 }
 
-/// Run a command with a C locale and return its standard output.
 fn run(program: &str, args: &[&str]) -> Result<String, String> {
     let output = Command::new(program)
         .args(args)
@@ -51,14 +45,9 @@ fn run(program: &str, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-// --- Boot timing ---
-
-/// Total boot time reported by `systemd-analyze`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BootSummary {
-    /// e.g. `"22.713s"`.
     pub total: String,
-    /// The full first line, including the firmware/loader/kernel/userspace split.
     pub detail: String,
 }
 
@@ -74,7 +63,6 @@ fn parse_boot_summary(line: &str) -> Option<BootSummary> {
     if line.is_empty() {
         return None;
     }
-    // "Startup finished in ... = 22.713s" -> keep the part after the last '='.
     let total = line.rsplit('=').next()?.trim().to_string();
     Some(BootSummary {
         total,
@@ -82,24 +70,18 @@ fn parse_boot_summary(line: &str) -> Option<BootSummary> {
     })
 }
 
-/// One stage of the boot process, e.g. `firmware` or `userspace`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BootComponent {
     pub label: String,
     pub time: String,
 }
 
-/// Split the `systemd-analyze` detail line into its stages.
-///
-/// The line looks like
-/// `Startup finished in 3.4s (firmware) + 1.2s (loader) + 5.6s (kernel) = 22.7s`.
 pub fn parse_breakdown(detail: &str) -> Vec<BootComponent> {
     detail
         .split('+')
         .filter_map(|segment| {
             let (before, after) = segment.split_once('(')?;
             let label = after.split(')').next()?.trim();
-            // Drop the leading "Startup finished in" from the first segment.
             let time = before.split_whitespace().last()?;
             if label.is_empty() {
                 return None;
@@ -112,9 +94,6 @@ pub fn parse_breakdown(detail: &str) -> Vec<BootComponent> {
         .collect()
 }
 
-// --- systemd-analyze blame ---
-
-/// One line of `systemd-analyze blame`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlameEntry {
     pub time: String,
@@ -143,8 +122,6 @@ fn parse_blame(output: &str) -> Vec<BlameEntry> {
         .collect()
 }
 
-/// Parse a `systemd-analyze blame` time such as `"5.678s"`, `"234ms"` or
-/// `"1min 8.634s"` into seconds.
 pub fn parse_duration_seconds(value: &str) -> f64 {
     let mut seconds = 0.0;
     for token in value.split_whitespace() {
@@ -163,28 +140,19 @@ pub fn parse_duration_seconds(value: &str) -> f64 {
     seconds
 }
 
-// --- systemctl services ---
-
-/// One systemd service unit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Service {
     pub name: String,
-    /// Runtime state, e.g. `active` / `inactive`.
     pub active: String,
-    /// Sub-state, e.g. `running` / `dead`.
     pub sub: String,
     pub description: String,
-    /// Unit-file state, e.g. `enabled` / `disabled`.
     pub enabled: String,
 }
 
-/// Unit types the original application lists. Slices, timers, paths, scopes and
-/// automounts are dropped so the list stays readable.
 const LISTED_SUFFIXES: [&str; 6] = [
     ".service", ".mount", ".device", ".swap", ".socket", ".target",
 ];
 
-/// Whether a unit is of a type the application shows.
 pub fn is_listed_unit(name: &str) -> bool {
     LISTED_SUFFIXES.iter().any(|suffix| name.ends_with(suffix))
 }
@@ -195,7 +163,6 @@ pub fn services() -> Result<Vec<Service>, String> {
         &["list-units", "--all", "--no-pager", "--no-legend"],
     )?;
 
-    // `list-unit-files` also reports stopped and disabled units.
     let files = run(
         "systemctl",
         &["list-unit-files", "--no-pager", "--no-legend"],
@@ -205,8 +172,6 @@ pub fn services() -> Result<Vec<Service>, String> {
     Ok(merge_services(&units, parse_unit_file_states(&files)))
 }
 
-/// systemctl marks a unit in its first column with a glyph. With `LC_ALL=C`
-/// (which we set for stable parsing) that glyph is a plain `*`.
 const UNIT_MARKERS: &[char] = &['*', '●', '×'];
 
 fn parse_units(output: &str) -> Vec<(String, String, String, String)> {
@@ -217,7 +182,6 @@ fn parse_units(output: &str) -> Vec<(String, String, String, String)> {
             let mut parts = line.split_whitespace();
             let name = parts.next()?.to_string();
             let load = parts.next()?;
-            // Units that are not installed ("not-found") are noise, not services.
             if load == "not-found" {
                 return None;
             }
@@ -248,7 +212,6 @@ fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<
         if !is_listed_unit(&name) {
             continue;
         }
-        // Consuming the state here keeps file-only entries in the map below.
         let enabled = file_states
             .remove(&name)
             .unwrap_or_else(|| "unknown".to_string());
@@ -262,7 +225,6 @@ fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<
     }
 
     for (name, state) in file_states {
-        // Template units are never instantiated, so skip them.
         if name.contains('@') || !is_listed_unit(&name) {
             continue;
         }
@@ -279,19 +241,11 @@ fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<
     services
 }
 
-// --- Journal and dependencies ---
-
-/// Whether `journalctl` output effectively contains nothing useful.
 pub fn journal_is_empty(output: &str) -> bool {
     let trimmed = output.trim();
     trimmed.is_empty() || trimmed.to_lowercase().contains("-- no entries --")
 }
 
-/// Recent journal entries for a unit.
-///
-/// Reading the journal may require membership in `systemd-journal`, so when the
-/// unprivileged read comes back empty (or fails) and a password is available we
-/// retry through `sudo -S`.
 pub fn journal(unit: &str, lines: usize, password: Option<&str>) -> String {
     let count = lines.to_string();
     let args = ["-u", unit, "--no-pager", "-n", count.as_str()];
@@ -310,7 +264,6 @@ pub fn journal(unit: &str, lines: usize, password: Option<&str>) -> String {
     }
 }
 
-/// Unit dependencies as rendered by `systemctl list-dependencies`.
 pub fn dependencies(unit: &str, reverse: bool) -> Result<String, String> {
     let mut args = vec!["list-dependencies", unit, "--no-pager"];
     if reverse {
@@ -319,9 +272,6 @@ pub fn dependencies(unit: &str, reverse: bool) -> Result<String, String> {
     run("systemctl", &args)
 }
 
-// --- System information ---
-
-/// Basic host information shown on the analysis page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SystemInfo {
     pub os: String,

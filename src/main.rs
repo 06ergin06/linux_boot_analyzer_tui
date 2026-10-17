@@ -1,4 +1,4 @@
-//! A terminal UI for analyzing Linux boot time, rewritten from the Python
+//! A terminal UI for analyzing boot time, rewritten from the Python
 //! `pardus-boot-analyzer` application.
 
 mod app;
@@ -23,29 +23,18 @@ use app::App;
 use crossterm::event::{self, Event};
 use system::SystemData;
 
-/// How long to wait for a key before checking the loader channel again.
 const EVENT_POLL: Duration = Duration::from_millis(200);
 
-/// Name and version of the binary, taken from `Cargo.toml`.
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// What the command line asks the program to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Cli {
-    /// Start the interface, which is what no argument means.
     Run,
-    /// Print the help text and stop.
     Help,
-    /// Print the version and stop.
     Version,
 }
 
-/// Read `--help`/`--version` out of the arguments.
-///
-/// Unknown arguments are ignored, so a stray flag can never keep the interface
-/// from opening. The text is English like the rest of the command line; the
-/// interface itself is translated.
 fn parse_cli(args: impl Iterator<Item = String>) -> Cli {
     for arg in args {
         match arg.as_str() {
@@ -72,7 +61,6 @@ fn print_help() {
     println!("so there is nothing else to pass in; press ? inside it for the key list.");
 }
 
-/// Gather a system snapshot on a background thread so the UI stays responsive.
 fn spawn_loader(sender: &Sender<SystemData>) {
     let sender = sender.clone();
     thread::spawn(move || {
@@ -93,7 +81,6 @@ fn main() -> io::Result<()> {
         Cli::Run => {}
     }
 
-    // Pick the saved language (or the system locale) before drawing anything.
     i18n::init();
 
     // `ratatui::run` switches the terminal into raw mode and the alternate

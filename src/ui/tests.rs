@@ -47,7 +47,6 @@ fn loaded_app(tab: Tab) -> App {
     app.tab = tab;
     app.loading = false;
     app.data = Some(sample_data());
-    // These tests are about layout, not about the default tip filter.
     app.tip_filter = crate::filters::TipFilter::All;
     app
 }
@@ -189,8 +188,6 @@ fn action_bar_shows_the_keys_for_the_active_tab() {
 
 #[test]
 fn the_action_bar_fits_a_normal_terminal() {
-    // Each tab advertises a single line of keys, so it has to fit a normal
-    // terminal width instead of running off the end of the screen.
     for tab in [
         Tab::Analysis,
         Tab::Services,
@@ -219,7 +216,6 @@ fn render_buffer(app: &App, width: u16, height: u16) -> ratatui::buffer::Buffer 
 #[test]
 fn the_theme_paints_titles_states_and_the_selection() {
     let mut app = loaded_app(Tab::Services);
-    // One healthy and one failed unit, so both state colours appear.
     if let Some(data) = app.data.as_mut()
         && let Ok(services) = &mut data.services
     {
@@ -235,12 +231,10 @@ fn the_theme_paints_titles_states_and_the_selection() {
     let buffer = render_buffer(&app, 100, 30);
     let colours: Vec<Color> = buffer.content.iter().map(|cell| cell.fg).collect();
 
-    // Panel titles and table headers (accent), a running unit and a failure.
     assert!(colours.contains(&ACCENT), "no accent colour");
     assert!(colours.contains(&OK), "no healthy colour");
     assert!(colours.contains(&BAD), "no failure colour");
     assert!(colours.contains(&MUTED), "no muted colour");
-    // The selection stays readable on a terminal without colour.
     assert!(
         buffer
             .content
@@ -281,7 +275,6 @@ fn the_confirmation_dialog_counts_wrapped_rows() {
     assert_eq!(wrapped_rows("a question that does not fit", 10), 3);
     assert_eq!(wrapped_rows("unbreakablesupercalifragilistic", 5), 7);
     assert_eq!(wrapped_rows("anything", 0), 1);
-    // Runs of spaces are kept, so they count towards the row width.
     assert_eq!(wrapped_rows("ab    cd", 8), 1);
     assert_eq!(wrapped_rows("ab    cd", 7), 2);
 }
@@ -308,7 +301,6 @@ fn the_language_menu_lists_every_language() {
     assert!(text.contains("Language"), "{text}");
     assert!(text.contains("English"), "{text}");
     assert!(text.contains("Türkçe"), "{text}");
-    // The keys are advertised in the bar under the menu.
     assert!(text.contains("Up/Down: choose"), "{text}");
 }
 
@@ -329,7 +321,6 @@ fn the_delay_dialog_shows_the_value_and_the_key_hint() {
 #[test]
 fn confirmation_dialog_keeps_the_key_hint_visible() {
     let mut app = loaded_app(Tab::Services);
-    // A long unit name wraps the question inside the dialog.
     if let Some(data) = app.data.as_mut() {
         data.services = Ok(vec![Service {
             name: "systemd-networkd-wait-online.service".to_string(),
@@ -355,7 +346,6 @@ fn confirmation_dialog_keeps_the_key_hint_visible() {
 fn a_long_service_description_is_not_clipped() {
     let app = loaded_app(Tab::Services);
 
-    // The pane grows to the wrapped text instead of cutting it off at six rows.
     let text = render_to_string(&app, 60, 26);
 
     assert!(text.contains("Do not disable."), "{text}");
@@ -369,12 +359,10 @@ fn a_wrapping_autostart_path_is_not_clipped() {
     let text = render_to_string(&app, 40, 24);
 
     assert!(text.contains("Command: example --start"), "{text}");
-    // The path is broken over the pane edge but not cut off.
     assert!(text.contains("File:"), "{text}");
     assert!(text.contains("esktop"), "{text}");
 }
 
-/// A snapshot that also holds one profile the user saved.
 fn with_custom_profile(tab: Tab) -> App {
     let mut app = loaded_app(tab);
     if let Some(data) = app.data.as_mut() {
@@ -399,11 +387,9 @@ fn the_profiles_tab_lists_the_users_own_profiles() {
 
     let text = render_to_string(&app, 100, 24);
 
-    // Both groups are on screen, and the cursor marks the custom row.
     assert!(text.contains("User Custom Profiles"), "{text}");
     assert!(text.contains("> My Profile"), "{text}");
     assert!(text.contains("Minimum Services"), "{text}");
-    // The detail pane shows the rule count and the rules themselves.
     assert!(text.contains("2 service rules"), "{text}");
     assert!(text.contains("Printer Service (CUPS)"), "{text}");
 }
@@ -428,6 +414,5 @@ fn the_new_profile_form_shows_every_candidate_and_its_hint() {
     assert!(text.contains("Profile Name: Work"), "{text}");
     assert!(text.contains("> [x] Printer Service (CUPS)"), "{text}");
     assert!(text.contains("[ ] Cellular Modem Controller"), "{text}");
-    // The key hint is its own bottom row, so it survives a wrapped form.
     assert!(text.contains("Enter: create"), "{text}");
 }

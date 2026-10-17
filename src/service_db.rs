@@ -1,5 +1,4 @@
-//! Static service knowledge base, ported from the Python project's
-//! `services_data.json`.
+//! Static service knowledge base, ported from `services_data.json`.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -8,25 +7,19 @@ use serde::Deserialize;
 
 use crate::i18n::{self, Lang};
 
-/// Embedded at compile time so the binary works from any working directory.
 const SERVICES_JSON: &str = include_str!("../assets/services_data.json");
 
-/// How the original application classifies a service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub enum Tip {
-    /// Safe to turn off and usually worth disabling.
     #[serde(rename = "suggestion")]
     Suggestion,
-    /// Important: turning it off may break the system.
     #[serde(rename = "kritik")]
     Critical,
-    /// Required for basic functionality.
     #[serde(rename = "gerekli")]
     Required,
 }
 
 impl Tip {
-    /// Short label shown in the UI.
     pub fn label(self) -> &'static str {
         match self {
             Tip::Suggestion => i18n::t("tui_tip_suggestion"),
@@ -36,9 +29,6 @@ impl Tip {
     }
 }
 
-/// One entry of `services_data.json`. The plain `desc`/`suggestion` fields are
-/// Turkish because they come from the upstream data file; the `_en` variants
-/// hold the English translations.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServiceEntry {
     pub desc: String,
@@ -49,7 +39,6 @@ pub struct ServiceEntry {
 }
 
 impl ServiceEntry {
-    /// Description in the active language, falling back to the other one.
     pub fn description(&self) -> &str {
         let (primary, fallback) = match i18n::lang() {
             Lang::En => (&self.desc_en, &self.desc),
@@ -62,7 +51,6 @@ impl ServiceEntry {
         }
     }
 
-    /// Suggestion in the active language, falling back to the other one.
     pub fn suggestion_text(&self) -> &str {
         let (primary, fallback) = match i18n::lang() {
             Lang::En => (&self.oneri_en, &self.suggestion),
@@ -76,12 +64,9 @@ impl ServiceEntry {
     }
 }
 
-static ENTRIES: LazyLock<HashMap<String, ServiceEntry>> = LazyLock::new(|| {
-    // Embedded at build time; fall back to an empty map instead of panicking.
-    serde_json::from_str(SERVICES_JSON).unwrap_or_default()
-});
+static ENTRIES: LazyLock<HashMap<String, ServiceEntry>> =
+    LazyLock::new(|| serde_json::from_str(SERVICES_JSON).unwrap_or_default());
 
-/// Maps a template prefix (`getty`) to its template entry key (`getty@.service`).
 static TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     ENTRIES
         .keys()
@@ -92,10 +77,6 @@ static TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(
         .collect()
 });
 
-/// Look up the knowledge-base entry for a unit name.
-///
-/// Template instances such as `getty@tty1.service` fall back to the template
-/// entry (`getty@.service`).
 pub fn lookup(name: &str) -> Option<&'static ServiceEntry> {
     if let Some(entry) = ENTRIES.get(name) {
         return Some(entry);

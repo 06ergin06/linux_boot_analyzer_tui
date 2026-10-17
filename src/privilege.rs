@@ -1,7 +1,5 @@
-//! Runs privileged `systemctl` commands through `sudo -S`.
-//!
-//! The password is written to sudo's standard input; commands are passed as
-//! arguments (never through a shell) so unit names cannot be interpreted.
+//! Privileged `systemctl` through `sudo -S`: the password goes to stdin and
+//! unit names are passed as arguments, never through a shell.
 
 use std::fs;
 use std::io::Write;
@@ -10,28 +8,19 @@ use std::sync::OnceLock;
 
 use crate::i18n;
 
-/// PAM configuration files that decide how `sudo` authenticates, one per
-/// common layout: Arch/RHEL (`sudo` and `system-auth`) and Debian
-/// (`common-auth`).
 const PAM_FILES: [&str; 3] = [
     "/etc/pam.d/sudo",
     "/etc/pam.d/system-auth",
     "/etc/pam.d/common-auth",
 ];
 
-/// System bus address given to `sudo` when its PAM stack uses `pam_fprintd`.
-///
-/// `pam_fprintd` is `sufficient` in most distributions, so it runs before
-/// `pam_unix` is asked for the password. It reaches `fprintd` over the system
-/// bus: an address that does not exist makes the module give up at once (just
-/// like it does for remote sessions) and authentication falls through to the
-/// password we already wrote to stdin. Otherwise a fingerprint prompt is
-/// painted over the TUI for up to 30 seconds while the app waits. `env -u`
-/// drops the address again before the real command runs, so `systemctl` still
-/// talks to the actual system bus.
+// `pam_fprintd` is `sufficient` on most distributions, so it runs before
+// `pam_unix` asks for the password and paints a fingerprint prompt over the
+// TUI. An address with no bus behind it makes the module give up at once and
+// authentication falls through to the password already on stdin; `env -u`
+// drops the address again so the real command still sees the system bus.
 const DISABLED_BUS: &str = "unix:path=/nonexistent-disabled-fprintd-bus";
 
-/// A unit action the UI can trigger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Enable,
@@ -43,7 +32,6 @@ pub enum Action {
 }
 
 impl Action {
-    /// Menu order.
     pub const ALL: [Action; 6] = [
         Action::Enable,
         Action::Disable,
@@ -64,7 +52,6 @@ impl Action {
         }
     }
 
-    /// i18n key of the "are you sure?" question for this action.
     pub fn prompt_key(self) -> &'static str {
         match self {
             Action::Enable => "tui_prompt_enable",
@@ -88,12 +75,10 @@ impl Action {
     }
 }
 
-/// Run `systemctl <verb> <unit>` as root.
 pub fn systemctl(action: Action, unit: &str, password: &str) -> Result<String, String> {
     systemctl_many(action.verb(), &[unit], password)
 }
 
-/// Run `systemctl <verb> <unit>...` as root for several units at once.
 pub fn systemctl_many(verb: &str, units: &[&str], password: &str) -> Result<String, String> {
     if units.is_empty() {
         return Ok(String::new());
@@ -104,7 +89,6 @@ pub fn systemctl_many(verb: &str, units: &[&str], password: &str) -> Result<Stri
     run(&args, password)
 }
 
-/// Disable several units in sequence, reporting how many succeeded.
 pub fn disable_all(units: &[String], password: &str) -> Result<String, String> {
     let mut disabled = 0;
     let mut failures = Vec::new();
@@ -126,7 +110,6 @@ pub fn disable_all(units: &[String], password: &str) -> Result<String, String> {
     }
 }
 
-/// Whether the PAM stacks `sudo` uses load the fingerprint module.
 fn pam_fprintd_enabled() -> bool {
     static CACHED: OnceLock<bool> = OnceLock::new();
 
@@ -137,7 +120,6 @@ fn pam_fprintd_enabled() -> bool {
     })
 }
 
-/// Whether a PAM configuration loads `pam_fprintd`, ignoring comments.
 fn loads_fprintd(config: &str) -> bool {
     config
         .lines()
@@ -145,15 +127,10 @@ fn loads_fprintd(config: &str) -> bool {
         .any(|line| !line.starts_with('#') && line.contains("pam_fprintd"))
 }
 
-/// Run a command as root, feeding the password to `sudo -S`.
-///
-/// `LC_ALL=C` keeps sudo's error messages in English so callers can detect
-/// authentication failures reliably.
 pub fn run(args: &[&str], password: &str) -> Result<String, String> {
     let mut command = Command::new("sudo");
     command.arg("-S");
 
-    // See `DISABLED_BUS`: keep the fingerprint prompt away from the terminal.
     if pam_fprintd_enabled() {
         command
             .args(["env", "-u", "DBUS_SYSTEM_BUS_ADDRESS"])
@@ -194,7 +171,6 @@ pub fn run(args: &[&str], password: &str) -> Result<String, String> {
     }
 }
 
-/// Whether an error message looks like a rejected password.
 pub fn is_auth_failure(message: &str) -> bool {
     let lower = message.to_lowercase();
     lower.contains("incorrect password")

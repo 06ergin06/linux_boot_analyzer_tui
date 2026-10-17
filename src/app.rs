@@ -14,10 +14,8 @@ use crate::privilege::{self, Action};
 use crate::system::{self, Service, SystemData, parse_duration_seconds};
 use crate::{profiles, service_db};
 
-/// Longest autostart start delay the interface accepts, in seconds.
 const MAX_DELAY: u32 = 600;
 
-/// The top-level screens, mirroring the pages of the original GTK application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Analysis,
@@ -28,7 +26,6 @@ pub enum Tab {
 }
 
 impl Tab {
-    /// All tabs in display order.
     pub const ALL: [Tab; 5] = [
         Tab::Analysis,
         Tab::Services,
@@ -37,7 +34,6 @@ impl Tab {
         Tab::Backups,
     ];
 
-    /// Label shown in the tab bar.
     pub fn title(self) -> &'static str {
         match self {
             Tab::Analysis => i18n::t("tab_analysis"),
@@ -48,84 +44,56 @@ impl Tab {
         }
     }
 
-    /// Position in [`Tab::ALL`], used by the tab bar and for cycling.
     pub fn index(self) -> usize {
         Self::ALL.iter().position(|tab| *tab == self).unwrap_or(0)
     }
 }
 
-/// How the status line presents the latest message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
-    /// Plain information, such as a hint about the selected unit.
     Info,
-    /// An operation that finished successfully.
     Success,
-    /// A failure the user should notice.
     Error,
 }
 
-/// A modal presented on top of the current tab.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Overlay {
     None,
-    /// Choose an action for the selected service.
     Menu,
-    /// Confirm the pending action.
     Confirm,
-    /// Ask for the sudo password.
     Password,
-    /// Fill in the "new autostart entry" form.
     Form,
-    /// Type a start delay for the selected autostart entry.
     Delay,
-    /// Fill in the "new custom profile" form.
     ProfileForm,
-    /// Choose the interface language.
     Language,
 }
 
-/// A unit that is enabled, safe to disable, and slow to boot.
 pub struct OptimizableService {
     pub name: String,
-    /// Boot time as reported by `systemd-analyze blame`.
     pub time: String,
     pub seconds: f64,
     pub suggestion: String,
 }
 
-/// A scrollable text pane (journal log or dependency tree).
 pub struct InfoPane {
     pub title: String,
     pub lines: Vec<String>,
-    /// Index of the first visible line.
     pub scroll: u16,
 }
 
-/// Work waiting for confirmation and, if necessary, a password.
 enum Pending {
-    /// A single `systemctl` action on one unit.
     Action(Action, String),
-    /// Disable every suggested service.
     Bulk(Vec<String>),
-    /// Delete an autostart entry.
     RemoveAutostart { name: String, path: PathBuf },
-    /// Create a new autostart entry.
     AddAutostart { name: String, command: String },
-    /// Apply an optimization profile.
     ApplyProfile(profiles::Plan),
-    /// Restore unit-file states from a backup.
     RestoreBackup(profiles::Plan),
-    /// Delete a restore point.
     RemoveBackup { name: String, path: PathBuf },
-    /// Delete a custom profile.
     RemoveCustomProfile { name: String, path: PathBuf },
-    /// Save the current unit-file states as a restore point.
     CreateBackup(BTreeMap<String, String>),
 }
 
 impl Pending {
-    /// Whether the work needs root privileges.
     fn needs_password(&self) -> bool {
         matches!(
             self,
@@ -137,78 +105,45 @@ impl Pending {
     }
 }
 
-/// Result of a background task started by the UI.
 enum CommandOutcome {
-    /// Output of a privileged command.
     Message(Result<String, String>),
-    /// Text to show in the [`InfoPane`].
     Info { title: String, lines: Vec<String> },
 }
 
-/// All application state, kept free of rendering and I/O.
 pub struct App {
     pub tab: Tab,
     pub should_quit: bool,
-    /// System snapshot, filled in once the background loader finishes.
     pub data: Option<SystemData>,
-    /// Selected row in the services table.
     pub selected: usize,
-    /// Selected row in the autostart list.
     pub autostart_selected: usize,
-    /// Which unit types the Services tab shows.
     pub view: ServiceView,
-    /// Selected profile in the profiles list (built-in profiles first).
     pub profiles_selected: usize,
-    /// Name typed in the "new custom profile" form or in the save prompt.
     pub profile_name: String,
-    /// Form row with the cursor; 0 is the name, the rest are service rules.
     pub profile_form_index: usize,
-    /// One switch per candidate of the "new custom profile" form.
     pub profile_form_checked: Vec<bool>,
-    /// Selected backup in the backups list.
     pub backups_selected: usize,
-    /// Values of the open form, one per field.
     pub form_values: Vec<String>,
-    /// Which form field is being edited.
     pub form_index: usize,
-    /// First visible line of the analysis page.
     pub analysis_scroll: u16,
-    /// Whether the initial snapshot is still loading.
     pub loading: bool,
-    /// Services-tab filters, sort order and search query.
     pub status_filter: StatusFilter,
     pub tip_filter: TipFilter,
     pub sort: SortBy,
     pub query: String,
-    /// Whether the search box is capturing keystrokes.
     pub searching: bool,
-    /// Set when the user asks for a data refresh; the main loop reloads.
     pub reload_requested: bool,
-    /// Modal currently shown, if any.
     pub overlay: Overlay,
-    /// Selected entry in the action menu.
     pub menu_index: usize,
-    /// Selected entry in the language picker.
     pub language_index: usize,
-    /// Whatever the user has typed into the password prompt.
     pub password_input: String,
-    /// Whatever the user has typed into the delay prompt.
     pub delay_input: String,
-    /// Whether the next digit typed into the delay prompt replaces it.
     pub delay_replace: bool,
-    /// Latest command result, shown in the status line.
     pub message: Option<String>,
-    /// How the status line should colour that message.
     pub level: Level,
-    /// Whether a privileged command is currently running.
     pub running: bool,
-    /// Journal/dependency text pane, when open.
     pub info: Option<InfoPane>,
-    /// Text the main loop should put on the system clipboard.
     clipboard: Option<String>,
-    /// Password cached after the first privileged command.
     password: Option<String>,
-    /// Work waiting for confirmation and a password.
     pending: Option<Pending>,
     command_tx: Sender<CommandOutcome>,
     command_rx: Receiver<CommandOutcome>,
@@ -234,8 +169,6 @@ impl App {
             analysis_scroll: 0,
             loading: true,
             status_filter: StatusFilter::All,
-            // Show the services that can be disabled, slowest first: that is
-            // the list a user comes to this tab for.
             tip_filter: TipFilter::Suggestion,
             sort: SortBy::BootTime,
             query: String::new(),
@@ -259,7 +192,6 @@ impl App {
         }
     }
 
-    /// Take the loaded snapshot from the background loader, if it is ready.
     pub fn poll_data(&mut self, receiver: &Receiver<SystemData>) {
         match receiver.try_recv() {
             Ok(data) => {
@@ -271,22 +203,17 @@ impl App {
         }
     }
 
-    /// Show a message in the status line, tagged with how it should read.
     fn notify(&mut self, text: String, level: Level) {
         self.message = Some(text);
         self.level = level;
     }
 
-    /// Clear the status line before starting new work.
     fn clear_message(&mut self) {
         self.message = None;
         self.level = Level::Info;
     }
 
-    /// Whether a second command has to wait for the one already running.
-    ///
-    /// Two `systemctl` processes would race over the same unit states, and the
-    /// status line already says that work is in progress.
+    // Two `systemctl` processes would race over the same unit states.
     fn refuse_while_running(&mut self) -> bool {
         if self.running {
             self.notify(i18n::t("tui_busy").to_string(), Level::Info);
@@ -295,7 +222,6 @@ impl App {
         false
     }
 
-    /// Take the result of a background task, if one finished.
     pub fn poll_command(&mut self) {
         match self.command_rx.try_recv() {
             Ok(CommandOutcome::Message(Ok(output))) => {
@@ -308,7 +234,6 @@ impl App {
                     },
                     Level::Success,
                 );
-                // The unit states changed, so refresh the snapshot.
                 self.reload_requested = true;
             }
             Ok(CommandOutcome::Message(Err(error))) => {
@@ -330,9 +255,6 @@ impl App {
         }
     }
 
-    // --- Services tab data ---
-
-    /// Services matching the current unit type, filters and sort order.
     pub fn visible_services(&self) -> Vec<&Service> {
         let Some(services) = self.services() else {
             return Vec::new();
@@ -370,7 +292,6 @@ impl App {
         visible
     }
 
-    /// Boot time reported by `systemd-analyze blame`, keyed by unit name.
     pub fn blame_times(&self) -> HashMap<&str, &str> {
         self.data
             .as_ref()
@@ -384,14 +305,10 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// The service currently highlighted in the table.
     pub fn selected_service(&self) -> Option<&Service> {
         self.visible_services().get(self.selected).copied()
     }
 
-    /// Number of units of the current type, before the filters are applied.
-    ///
-    /// Shown next to the view name as "visible / total".
     pub fn view_total(&self) -> usize {
         self.services().map_or(0, |services| {
             services
@@ -401,11 +318,6 @@ impl App {
         })
     }
 
-    // --- Analysis tab data ---
-
-    /// Enabled, safe-to-disable services that slow down the boot.
-    ///
-    /// Ported from the original `_get_optimizable_services`.
     pub fn optimizable_services(&self) -> Vec<OptimizableService> {
         let Some(data) = &self.data else {
             return Vec::new();
@@ -444,7 +356,6 @@ impl App {
         optimizable
     }
 
-    /// Plain-text content of the analysis page, one entry per line.
     pub fn analysis_lines(&self) -> Vec<String> {
         let Some(data) = &self.data else {
             return vec![if self.loading {
@@ -515,7 +426,6 @@ impl App {
         lines
     }
 
-    /// The question shown in the confirmation dialog.
     pub fn confirmation_prompt(&self) -> String {
         match &self.pending {
             Some(Pending::Action(action, unit)) => {
@@ -545,9 +455,6 @@ impl App {
         }
     }
 
-    // --- Profiles and backups ---
-
-    /// Restore points, newest first.
     pub fn backups(&self) -> &[Backup] {
         self.data
             .as_ref()
@@ -556,12 +463,10 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// The built-in profile currently highlighted, if the cursor is on one.
     pub fn selected_profile(&self) -> Option<&'static str> {
         profiles::ids().get(self.profiles_selected).copied()
     }
 
-    /// The user's own profiles.
     pub fn custom_profiles(&self) -> &[CustomProfile] {
         self.data
             .as_ref()
@@ -570,29 +475,20 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// The custom profile currently highlighted, if the cursor is past the
-    /// built-in profiles.
     pub fn selected_custom_profile(&self) -> Option<&CustomProfile> {
         let builtin = profiles::ids().len();
         self.custom_profiles()
             .get(self.profiles_selected.checked_sub(builtin)?)
     }
 
-    /// Selectable rows on the Profiles tab: built-in profiles first.
     pub fn profile_count(&self) -> usize {
         profiles::ids().len() + self.custom_profiles().len()
     }
 
-    /// The backup currently highlighted.
     pub fn selected_backup(&self) -> Option<&Backup> {
         self.backups().get(self.backups_selected)
     }
 
-    /// Estimated boot-time saving of a profile, in seconds.
-    ///
-    /// Ported from `Controller._calculate_profile_savings`: only services the
-    /// profile disables, that are currently enabled and appear in the boot
-    /// blame list, count towards the total.
     pub fn profile_savings(&self, profile_id: &str) -> f64 {
         let Some(profile) = profiles::data().profiles.get(profile_id) else {
             return 0.0;
@@ -600,12 +496,10 @@ impl App {
         self.savings_of(profile.services.iter())
     }
 
-    /// Estimated saving of a user-created profile, in seconds.
     pub fn custom_profile_savings(&self, profile: &CustomProfile) -> f64 {
         self.savings_of(profile.services.iter())
     }
 
-    /// Estimated saving of a set of service rules, in seconds.
     fn savings_of<'a>(&self, rules: impl Iterator<Item = (&'a String, &'a String)>) -> f64 {
         let states = self.current_states();
         let times = self.blame_times();
@@ -624,12 +518,10 @@ impl App {
             .sum()
     }
 
-    /// Take the text the main loop should put on the clipboard, if any.
     pub fn take_clipboard(&mut self) -> Option<String> {
         self.clipboard.take()
     }
 
-    /// Current enabled/active state of every known unit.
     fn current_states(&self) -> HashMap<&str, (&str, &str)> {
         self.services()
             .map(|services| {
@@ -646,9 +538,6 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// Work out the exact units to act on to reach the wanted state.
-    ///
-    /// Ported from `ProfileManager.apply_profile_batch`.
     fn build_plan(&self, enable: &[String], disable: &[String]) -> profiles::Plan {
         let current = self.current_states();
         let mut plan = profiles::Plan::default();
@@ -682,9 +571,6 @@ impl App {
         plan
     }
 
-    // --- Autostart tab data ---
-
-    /// Autostart entries from `~/.config/autostart`.
     pub fn autostart_entries(&self) -> &[AutostartEntry] {
         self.data
             .as_ref()
@@ -693,12 +579,10 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// The autostart entry currently highlighted.
     pub fn selected_autostart(&self) -> Option<&AutostartEntry> {
         self.autostart_entries().get(self.autostart_selected)
     }
 
-    /// Plain-text report of the current analysis, for exporting to a file.
     pub fn report(&self) -> String {
         let mut report = format!(
             "{}\n{}\n\n",
@@ -713,7 +597,6 @@ impl App {
         report
     }
 
-    /// Write the report next to the working directory and copy it as well.
     fn export_report(&mut self) {
         if self.tab != Tab::Analysis {
             return;
@@ -724,7 +607,6 @@ impl App {
         let written = std::fs::write(&path, &report);
         match written {
             Ok(()) => {
-                // The main loop turns this into an OSC 52 escape sequence.
                 self.clipboard = Some(report);
                 let text = i18n::fill(i18n::t("tui_report_copied"), &[&path]);
                 self.notify(text, Level::Success);
@@ -736,7 +618,6 @@ impl App {
         }
     }
 
-    /// The loaded services, if any.
     fn services(&self) -> Option<&[Service]> {
         self.data
             .as_ref()?
@@ -746,14 +627,12 @@ impl App {
             .map(Vec::as_slice)
     }
 
-    /// Update state in response to a key press.
     pub fn handle_key(&mut self, key: KeyEvent) {
         // Some platforms report key release as well; only act on presses.
         if key.kind != KeyEventKind::Press {
             return;
         }
 
-        // The info pane is modal: it captures scrolling keys.
         if self.info.is_some() {
             return self.handle_info_key(key);
         }
@@ -769,7 +648,6 @@ impl App {
             Overlay::None => {}
         }
 
-        // While searching, keys edit the query instead of controlling the UI.
         if self.searching {
             match key.code {
                 KeyCode::Enter => self.searching = false,
@@ -792,7 +670,6 @@ impl App {
             KeyCode::Tab => self.select_next_tab(),
             KeyCode::BackTab => self.select_previous_tab(),
             KeyCode::Char(digit @ '1'..='5') => self.select_tab(digit),
-            // Arrows move sideways inside the current tab, never between tabs.
             KeyCode::Right => self.cycle_view(),
             KeyCode::Left => self.cycle_view_back(),
             KeyCode::Down | KeyCode::Char('j') => self.move_down(),
@@ -834,7 +711,6 @@ impl App {
         }
     }
 
-    /// Scroll or close the info pane.
     fn handle_info_key(&mut self, key: KeyEvent) {
         let Some(info) = self.info.as_mut() else {
             return;
@@ -858,7 +734,6 @@ impl App {
         }
     }
 
-    /// Load the selected service's journal into the info pane.
     fn show_journal(&mut self) {
         if self.tab != Tab::Services {
             return;
@@ -883,7 +758,6 @@ impl App {
         });
     }
 
-    /// Load the selected service's dependencies into the info pane.
     fn show_dependencies(&mut self, reverse: bool) {
         if self.tab != Tab::Services {
             return;
@@ -974,7 +848,6 @@ impl App {
         self.overlay = Overlay::Menu;
     }
 
-    /// Stage a single-unit action and ask for confirmation.
     fn choose_action(&mut self, action: Action) {
         let Some(unit) = self.selected_service().map(|service| service.name.clone()) else {
             return;
@@ -983,7 +856,6 @@ impl App {
         self.overlay = Overlay::Confirm;
     }
 
-    /// Stage the bulk disable of every suggested service.
     fn begin_quick_optimize(&mut self) {
         if self.tab != Tab::Analysis {
             return;
@@ -1001,14 +873,12 @@ impl App {
         self.overlay = Overlay::Confirm;
     }
 
-    /// Run the pending work, asking for a password first if needed.
     fn run_pending(&mut self) {
         self.overlay = Overlay::None;
         let Some(pending) = self.pending.as_ref() else {
             return;
         };
 
-        // Only privileged work needs a password.
         if pending.needs_password() && self.password.is_none() {
             self.password_input.clear();
             self.overlay = Overlay::Password;
@@ -1053,13 +923,10 @@ impl App {
         });
     }
 
-    /// Start a pending job without a confirmation step.
     fn perform(&mut self, pending: Pending) {
         self.pending = Some(pending);
         self.run_pending();
     }
-
-    // --- Autostart actions ---
 
     fn toggle_autostart(&mut self) {
         if self.tab != Tab::Autostart {
@@ -1072,7 +939,6 @@ impl App {
         self.finish_local(result);
     }
 
-    /// d: type a start delay instead of stepping one second at a time.
     fn begin_delay_edit(&mut self) {
         if self.tab != Tab::Autostart {
             return;
@@ -1081,7 +947,6 @@ impl App {
             return;
         };
         self.delay_input = delay.to_string();
-        // Like a focused spinner: the first digit typed replaces the value.
         self.delay_replace = true;
         self.overlay = Overlay::Delay;
     }
@@ -1107,8 +972,6 @@ impl App {
         }
     }
 
-    /// Up/Down in the delay prompt nudge the value by one second, and an empty
-    /// or invalid field counts as zero so the arrows always recover.
     fn step_delay(&mut self, delta: i32) {
         let current = self.delay_input.trim().parse::<u32>().unwrap_or(0);
         let next = (current as i32 + delta).clamp(0, MAX_DELAY as i32) as u32;
@@ -1116,7 +979,6 @@ impl App {
         self.delay_replace = false;
     }
 
-    /// Write the typed delay, keeping the prompt open while it is not a number.
     fn save_autostart_delay(&mut self) {
         let Some(entry) = self.selected_autostart() else {
             self.overlay = Overlay::None;
@@ -1197,7 +1059,6 @@ impl App {
         self.perform(Pending::AddAutostart { name, command });
     }
 
-    /// Report the outcome of a local (non-privileged) file change.
     fn finish_local(&mut self, result: Result<(), String>) {
         match result {
             Ok(()) => {
@@ -1208,9 +1069,6 @@ impl App {
         }
     }
 
-    // --- Profiles and backups ---
-
-    /// Enter/a: the contextual primary action for the current tab.
     fn primary_action(&mut self) {
         match self.tab {
             Tab::Services => self.open_action_menu(),
@@ -1220,7 +1078,6 @@ impl App {
         }
     }
 
-    /// d: dependencies (Services), restore (Backups), delay (Autostart).
     fn secondary_action(&mut self) {
         match self.tab {
             Tab::Services => self.show_dependencies(false),
@@ -1230,7 +1087,6 @@ impl App {
         }
     }
 
-    /// x: delete the selected autostart entry, custom profile or restore point.
     fn remove_selected(&mut self) {
         match self.tab {
             Tab::Autostart => self.begin_remove_autostart(),
@@ -1240,7 +1096,6 @@ impl App {
         }
     }
 
-    /// v or Right: show the next unit type on the Services tab.
     fn cycle_view(&mut self) {
         if self.tab == Tab::Services {
             self.view = self.view.next();
@@ -1248,7 +1103,6 @@ impl App {
         }
     }
 
-    /// Left: the same, one unit type back.
     fn cycle_view_back(&mut self) {
         if self.tab == Tab::Services {
             self.view = self.view.previous();
@@ -1256,7 +1110,6 @@ impl App {
         }
     }
 
-    /// Save the current unit-file states as a restore point.
     fn begin_create_backup(&mut self) {
         if self.tab != Tab::Profiles && self.tab != Tab::Backups {
             return;
@@ -1274,13 +1127,10 @@ impl App {
         self.perform(Pending::CreateBackup(states));
     }
 
-    /// Stage the application of the selected profile.
     fn begin_apply_profile(&mut self) {
         if self.tab != Tab::Profiles {
             return;
         }
-        // A custom profile carries its own rules; a built-in one comes from
-        // the embedded data.
         let (enable, disable) = match self.selected_custom_profile() {
             Some(profile) => profile.selections(),
             None => match self.selected_profile() {
@@ -1299,7 +1149,6 @@ impl App {
         self.overlay = Overlay::Confirm;
     }
 
-    /// n on the Profiles tab: start a new custom profile.
     fn begin_new_custom_profile(&mut self) {
         self.profile_name.clear();
         self.profile_form_index = 0;
@@ -1308,10 +1157,6 @@ impl App {
         self.overlay = Overlay::ProfileForm;
     }
 
-    /// Keys of the "new custom profile" form.
-    ///
-    /// Space turns a service rule on or off and Enter creates the profile, so
-    /// the first row is typed into and the arrows move between the rows.
     fn handle_profile_form_key(&mut self, key: KeyEvent) {
         let rows = custom_profiles::CANDIDATES.len() + 1;
         match key.code {
@@ -1342,7 +1187,6 @@ impl App {
         }
     }
 
-    /// Write the custom profile the form describes.
     fn submit_profile_form(&mut self) {
         let name = self.profile_name.trim().to_string();
         if name.is_empty() {
@@ -1370,7 +1214,6 @@ impl App {
         }
     }
 
-    /// x on the Profiles tab: delete the selected custom profile.
     fn begin_remove_custom_profile(&mut self) {
         let Some(profile) = self.selected_custom_profile() else {
             return;
@@ -1383,7 +1226,6 @@ impl App {
         self.overlay = Overlay::Confirm;
     }
 
-    /// Stage the restoration of the selected backup.
     fn begin_restore_backup(&mut self) {
         if self.tab != Tab::Backups {
             return;
@@ -1431,9 +1273,7 @@ impl App {
         self.overlay = Overlay::Confirm;
     }
 
-    /// Show the key bindings in the scrollable info pane.
     fn open_help(&mut self) {
-        // Empty entries are the blank separator lines.
         let keys = [
             "tui_help_navigation",
             "tui_help_quit",
@@ -1488,7 +1328,6 @@ impl App {
         self.selected = 0;
     }
 
-    /// L: open the language picker on the language in use.
     fn open_language_menu(&mut self) {
         self.language_index = i18n::Lang::ALL
             .iter()
@@ -1527,7 +1366,6 @@ impl App {
         self.tab = Tab::ALL[previous];
     }
 
-    /// 1-5: jump straight to a tab.
     fn select_tab(&mut self, digit: char) {
         let index = digit as usize - '1' as usize;
         if let Some(tab) = Tab::ALL.get(index) {
@@ -1600,13 +1438,10 @@ impl Default for App {
     }
 }
 
-/// A `label value` row of the analysis page, with the label padded so the
-/// values line up in both languages.
 fn labelled(label: &str, value: &str) -> String {
     format!("  {label:<10}{value}")
 }
 
-/// A unique report filename based on the current Unix time.
 fn report_path() -> String {
     let seconds = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1614,13 +1449,11 @@ fn report_path() -> String {
     format!("boot-report-{seconds}.txt")
 }
 
-/// Parse a delay typed into the delay prompt, capped at [`MAX_DELAY`].
 fn parse_delay(input: &str) -> Option<u32> {
     let delay = input.trim().parse::<u32>().ok()?;
     Some(delay.min(MAX_DELAY))
 }
 
-/// Carry out a profile/backup plan as root, one verb at a time.
 fn run_plan(plan: &profiles::Plan, password: &str) -> Result<String, String> {
     let steps: [(&str, &[String]); 4] = [
         ("enable", &plan.enable),
