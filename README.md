@@ -20,6 +20,20 @@ interface is in English and Turkish.
   create your own.
 - **Backups** – create a restore point and go back to it later.
 
+## Screenshots
+
+| Analysis | Services |
+| --- | --- |
+| ![Analysis tab](docs/screenshots/analysis.png) | ![Services tab](docs/screenshots/services.png) |
+
+| Autostart | Profiles |
+| --- | --- |
+| ![Autostart tab](docs/screenshots/autostart.png) | ![Profiles tab](docs/screenshots/profiles.png) |
+
+| Backups | |
+| --- | --- |
+| ![Backups tab](docs/screenshots/backups.png) | |
+
 ## Requirements
 
 - Linux with systemd.
