@@ -47,7 +47,7 @@ echo "the binary needs $required, within the GLIBC_$GLIBC_FLOOR floor"
 name="linux_boot_analyzer_tui-$version-$TARGET"
 mkdir -p "dist/$name"
 install -m 755 "$BINARY" "dist/$name/"
-cp README.md CHANGELOG.md LICENSE "dist/$name/"
+cp README.md LICENSE "dist/$name/"
 tar -C dist -czf "dist/$name.tar.gz" "$name"
 (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 

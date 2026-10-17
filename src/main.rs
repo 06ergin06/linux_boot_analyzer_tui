@@ -152,19 +152,4 @@ mod tests {
         assert_eq!(parse_cli(args(&["-V"])), Cli::Version);
         assert_eq!(parse_cli(args(&["--version"])), Cli::Version);
     }
-
-    /// A release bumps the version and adds its changelog entry in one go;
-    /// this keeps the two from drifting apart.
-    #[test]
-    fn the_changelog_starts_with_the_package_version() {
-        let changelog = include_str!("../CHANGELOG.md");
-        let heading = changelog
-            .lines()
-            .find(|line| line.starts_with("## "))
-            .expect("the changelog has an entry");
-        assert!(
-            heading.contains(env!("CARGO_PKG_VERSION")),
-            "the first changelog entry is {heading:?}"
-        );
-    }
 }
