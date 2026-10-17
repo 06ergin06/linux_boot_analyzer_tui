@@ -1,6 +1,6 @@
 [package]
 name = "linux-boot-analyzer"
-version = "1.0.2"
+version = "1.0.0"
 edition = "2024"
 # 1.88 is not a preference: let-chains (edition 2024) and ratatui 0.30 need it.
 rust-version = "1.88"
