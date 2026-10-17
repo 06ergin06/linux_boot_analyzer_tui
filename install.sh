@@ -153,8 +153,19 @@ else
     use_sudo=no
 fi
 
-as_root mkdir -p "$dir"
-as_root install -m 755 "$tmp/$name-$version-$target/$name" "$dir/$name"
+if as_root mkdir -p "$dir" && as_root install -m 755 "$tmp/$name-$version-$target/$name" "$dir/$name"; then
+    :
+elif [ "$dir" = "/usr/local/bin" ]; then
+    # sudo can refuse too: no terminal to ask on, no permission, or a password
+    # that is wrong. The user's own directory always works.
+    echo "could not install into /usr/local/bin, using $HOME/.local/bin" >&2
+    dir="$HOME/.local/bin"
+    mkdir -p "$dir"
+    install -m 755 "$tmp/$name-$version-$target/$name" "$dir/$name"
+else
+    echo "could not install into $dir" >&2
+    exit 1
+fi
 
 "$dir/$name" --version
 echo "installed $dir/$name"
