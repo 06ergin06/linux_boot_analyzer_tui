@@ -2,7 +2,15 @@
 name = "linux_boot_analyzer_tui"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+# 1.88 is not a preference: let-chains (edition 2024) need it, and so does
+# ratatui 0.30's own `rust-version`.
+rust-version = "1.88"
+description = "A terminal UI that analyses Linux boot time and manages systemd services"
+license = "GPL-3.0-only"
+readme = "README.md"
+repository = "https://github.com/06ergin06/linux_boot_analyzer_tui"
+keywords = ["tui", "systemd", "boot", "ratatui", "linux"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 crossterm = "0.29.0"
