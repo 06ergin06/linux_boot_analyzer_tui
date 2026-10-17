@@ -29,7 +29,15 @@ interface is in English and Turkish.
 
 ## Install
 
-Download the archive for your architecture from the
+The install script picks the archive for your architecture, verifies its
+checksum and puts the binary in `/usr/local/bin` — or in `~/.local/bin` when it
+cannot write there:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/06ergin06/linux_boot_analyzer_tui/master/install.sh | sh
+```
+
+Or download the archive for your architecture from the
 [releases page](https://github.com/06ergin06/linux_boot_analyzer_tui/releases)
 and unpack the binary somewhere on your `PATH`, or build it yourself:
 
