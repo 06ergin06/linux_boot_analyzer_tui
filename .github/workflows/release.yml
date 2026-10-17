@@ -30,7 +30,7 @@ jobs:
           (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./$name/linux_boot_analyzer_tui" /dev/null
           echo "the packaged binary started, navigated and quit cleanly"
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/*.tar.gz
