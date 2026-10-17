@@ -7,6 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use crate::autostart::{self, AutostartEntry};
 use crate::backups::{self, Backup};
+use crate::custom_profiles::{self, CustomProfile};
 use crate::filters::{ServiceView, SortBy, StatusFilter, TipFilter};
 use crate::i18n;
 use crate::privilege::{self, Action};
@@ -78,6 +79,10 @@ pub enum Overlay {
     Form,
     /// Type a start delay for the selected autostart entry.
     Delay,
+    /// Fill in the "new custom profile" form.
+    ProfileForm,
+    /// Name the profile "save current state" is about to write.
+    ProfileName,
     /// Choose the interface language.
     Language,
 }
@@ -115,6 +120,8 @@ enum Pending {
     RestoreBackup(profiles::Plan),
     /// Delete a restore point.
     RemoveBackup { name: String, path: PathBuf },
+    /// Delete a custom profile.
+    RemoveCustomProfile { name: String, path: PathBuf },
     /// Save the current unit-file states as a restore point.
     CreateBackup(BTreeMap<String, String>),
 }
@@ -152,8 +159,14 @@ pub struct App {
     pub autostart_selected: usize,
     /// Which unit types the Services tab shows.
     pub view: ServiceView,
-    /// Selected profile in the profiles list.
+    /// Selected profile in the profiles list (built-in profiles first).
     pub profiles_selected: usize,
+    /// Name typed in the "new custom profile" form or in the save prompt.
+    pub profile_name: String,
+    /// Form row with the cursor; 0 is the name, the rest are service rules.
+    pub profile_form_index: usize,
+    /// One switch per candidate of the "new custom profile" form.
+    pub profile_form_checked: Vec<bool>,
     /// Selected backup in the backups list.
     pub backups_selected: usize,
     /// Values of the open form, one per field.
@@ -214,6 +227,9 @@ impl App {
             autostart_selected: 0,
             view: ServiceView::Services,
             profiles_selected: 0,
+            profile_name: String::new(),
+            profile_form_index: 0,
+            profile_form_checked: vec![false; custom_profiles::CANDIDATES.len()],
             backups_selected: 0,
             form_values: Vec::new(),
             form_index: 0,
@@ -522,6 +538,9 @@ impl App {
             Some(Pending::RemoveBackup { name, .. }) => {
                 i18n::fill(i18n::t("tui_delete_backup_prompt"), &[name])
             }
+            Some(Pending::RemoveCustomProfile { name, .. }) => {
+                i18n::fill(i18n::t("tui_delete_profile_prompt"), &[name])
+            }
             Some(Pending::AddAutostart { .. }) | Some(Pending::CreateBackup(..)) | None => {
                 i18n::t("tui_prompt_confirm").to_string()
             }
@@ -539,9 +558,31 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// The profile currently highlighted.
+    /// The built-in profile currently highlighted, if the cursor is on one.
     pub fn selected_profile(&self) -> Option<&'static str> {
         profiles::ids().get(self.profiles_selected).copied()
+    }
+
+    /// The user's own profiles.
+    pub fn custom_profiles(&self) -> &[CustomProfile] {
+        self.data
+            .as_ref()
+            .and_then(|data| data.custom_profiles.as_ref().ok())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    /// The custom profile currently highlighted, if the cursor is past the
+    /// built-in profiles.
+    pub fn selected_custom_profile(&self) -> Option<&CustomProfile> {
+        let builtin = profiles::ids().len();
+        self.custom_profiles()
+            .get(self.profiles_selected.checked_sub(builtin)?)
+    }
+
+    /// Selectable rows on the Profiles tab: built-in profiles first.
+    pub fn profile_count(&self) -> usize {
+        profiles::ids().len() + self.custom_profiles().len()
     }
 
     /// The backup currently highlighted.
@@ -558,12 +599,20 @@ impl App {
         let Some(profile) = profiles::data().profiles.get(profile_id) else {
             return 0.0;
         };
+        self.savings_of(profile.services.iter())
+    }
+
+    /// Estimated saving of a user-created profile, in seconds.
+    pub fn custom_profile_savings(&self, profile: &CustomProfile) -> f64 {
+        self.savings_of(profile.services.iter())
+    }
+
+    /// Estimated saving of a set of service rules, in seconds.
+    fn savings_of<'a>(&self, rules: impl Iterator<Item = (&'a String, &'a String)>) -> f64 {
         let states = self.current_states();
         let times = self.blame_times();
 
-        profile
-            .services
-            .iter()
+        rules
             .filter(|(_, action)| action.as_str() == "disable")
             .filter_map(|(name, _)| {
                 let (enabled, _) = states.get(name.as_str()).copied()?;
@@ -717,6 +766,8 @@ impl App {
             Overlay::Confirm => return self.handle_confirm_key(key),
             Overlay::Form => return self.handle_form_key(key),
             Overlay::Delay => return self.handle_delay_key(key),
+            Overlay::ProfileForm => return self.handle_profile_form_key(key),
+            Overlay::ProfileName => return self.handle_profile_name_key(key),
             Overlay::Language => return self.handle_language_key(key),
             Overlay::None => {}
         }
@@ -770,7 +821,7 @@ impl App {
                 self.reset_selection();
             }
             KeyCode::Char('o') => self.begin_quick_optimize(),
-            KeyCode::Char('w') => self.export_report(),
+            KeyCode::Char('w') => self.write_action(),
             KeyCode::Char('?') => self.open_help(),
             KeyCode::Char('L') => self.open_language_menu(),
             KeyCode::Char('b') => self.begin_create_backup(),
@@ -996,6 +1047,8 @@ impl App {
                 Pending::RemoveBackup { path, .. } => {
                     backups::remove(&path).map(|()| i18n::t("tui_backup_deleted").to_string())
                 }
+                Pending::RemoveCustomProfile { path, .. } => custom_profiles::remove(&path)
+                    .map(|()| i18n::t("custom_profile_deleted").to_string()),
                 Pending::CreateBackup(states) => backups::create(states)
                     .map(|backup| i18n::fill(i18n::t("tui_saved_backup"), &[&backup.name])),
             };
@@ -1082,12 +1135,15 @@ impl App {
     }
 
     fn begin_add_form(&mut self) {
-        if self.tab != Tab::Autostart {
-            return;
+        match self.tab {
+            Tab::Autostart => {
+                self.form_values = vec![String::new(), String::new()];
+                self.form_index = 0;
+                self.overlay = Overlay::Form;
+            }
+            Tab::Profiles => self.begin_new_custom_profile(),
+            _ => {}
         }
-        self.form_values = vec![String::new(), String::new()];
-        self.form_index = 0;
-        self.overlay = Overlay::Form;
     }
 
     fn begin_remove_autostart(&mut self) {
@@ -1177,11 +1233,22 @@ impl App {
         }
     }
 
-    /// x: delete the selected autostart entry or restore point.
+    /// w: write the report (Analysis) or save the current state as a profile
+    /// (Profiles).
+    fn write_action(&mut self) {
+        match self.tab {
+            Tab::Analysis => self.export_report(),
+            Tab::Profiles => self.begin_save_current_profile(),
+            _ => {}
+        }
+    }
+
+    /// x: delete the selected autostart entry, custom profile or restore point.
     fn remove_selected(&mut self) {
         match self.tab {
             Tab::Autostart => self.begin_remove_autostart(),
             Tab::Backups => self.begin_remove_backup(),
+            Tab::Profiles => self.begin_remove_custom_profile(),
             _ => {}
         }
     }
@@ -1225,11 +1292,16 @@ impl App {
         if self.tab != Tab::Profiles {
             return;
         }
-        let Some(profile_id) = self.selected_profile() else {
-            return;
+        // A custom profile carries its own rules; a built-in one comes from
+        // the embedded data.
+        let (enable, disable) = match self.selected_custom_profile() {
+            Some(profile) => profile.selections(),
+            None => match self.selected_profile() {
+                Some(profile_id) => profiles::selections(profile_id),
+                None => return,
+            },
         };
 
-        let (enable, disable) = profiles::selections(profile_id);
         let plan = self.build_plan(&enable, &disable);
         if plan.is_empty() {
             self.notify(i18n::t("tui_profile_matches").to_string(), Level::Info);
@@ -1237,6 +1309,143 @@ impl App {
         }
 
         self.pending = Some(Pending::ApplyProfile(plan));
+        self.overlay = Overlay::Confirm;
+    }
+
+    /// n on the Profiles tab: start a new custom profile.
+    fn begin_new_custom_profile(&mut self) {
+        self.profile_name.clear();
+        self.profile_form_index = 0;
+        self.profile_form_checked
+            .resize(custom_profiles::CANDIDATES.len(), false);
+        self.overlay = Overlay::ProfileForm;
+    }
+
+    /// Keys of the "new custom profile" form.
+    ///
+    /// Space turns a service rule on or off and Enter creates the profile, so
+    /// the first row is typed into and the arrows move between the rows.
+    fn handle_profile_form_key(&mut self, key: KeyEvent) {
+        let rows = custom_profiles::CANDIDATES.len() + 1;
+        match key.code {
+            KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Enter => self.submit_profile_form(),
+            KeyCode::Tab | KeyCode::Down => {
+                self.profile_form_index = (self.profile_form_index + 1) % rows
+            }
+            KeyCode::BackTab | KeyCode::Up => {
+                self.profile_form_index = (self.profile_form_index + rows - 1) % rows
+            }
+            KeyCode::Char(' ') => {
+                if self.profile_form_index > 0
+                    && let Some(checked) = self
+                        .profile_form_checked
+                        .get_mut(self.profile_form_index - 1)
+                {
+                    *checked = !*checked;
+                }
+            }
+            KeyCode::Backspace if self.profile_form_index == 0 => {
+                self.profile_name.pop();
+            }
+            KeyCode::Char(character) if self.profile_form_index == 0 => {
+                self.profile_name.push(character);
+            }
+            _ => {}
+        }
+    }
+
+    /// Write the custom profile the form describes.
+    fn submit_profile_form(&mut self) {
+        let name = self.profile_name.trim().to_string();
+        if name.is_empty() {
+            self.notify(
+                i18n::t("profile_name_girin_error").to_string(),
+                Level::Error,
+            );
+            return;
+        }
+
+        // Off means "disable": the original form stores a rule for every
+        // service it offers, in both directions.
+        let services = custom_profiles::form_rules(&self.profile_form_checked);
+
+        self.overlay = Overlay::None;
+        match custom_profiles::save(&name, &services) {
+            Ok(_) => {
+                self.notify(
+                    i18n::fill(i18n::t("custom_profile_olusturuldu"), &[&name]),
+                    Level::Success,
+                );
+                self.reload_requested = true;
+            }
+            Err(error) => self.notify(error, Level::Error),
+        }
+    }
+
+    /// w on the Profiles tab: save the current unit states as a profile.
+    fn begin_save_current_profile(&mut self) {
+        // Prefilled with the name the original suggests.
+        self.profile_name = i18n::t("custom_profilim").to_string();
+        self.overlay = Overlay::ProfileName;
+    }
+
+    /// Keys of the "name this profile" prompt.
+    fn handle_profile_name_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.overlay = Overlay::None,
+            KeyCode::Enter => self.submit_profile_name(),
+            KeyCode::Backspace => {
+                self.profile_name.pop();
+            }
+            KeyCode::Char(character) => self.profile_name.push(character),
+            _ => {}
+        }
+    }
+
+    /// Write the profile "save current state" asked for.
+    fn submit_profile_name(&mut self) {
+        let name = self.profile_name.trim().to_string();
+        if name.is_empty() {
+            self.notify(
+                i18n::t("profile_name_girin_error").to_string(),
+                Level::Error,
+            );
+            return;
+        }
+
+        // The original snapshots the units the knowledge base knows, and only
+        // those whose state is a plain enabled or disabled.
+        let services = custom_profiles::current_rules(
+            self.services()
+                .unwrap_or_default()
+                .iter()
+                .map(|service| (service.name.as_str(), service.enabled.as_str())),
+        );
+
+        self.overlay = Overlay::None;
+        match custom_profiles::save(&name, &services) {
+            Ok(_) => {
+                self.notify(
+                    format!("'{name}' {}", i18n::t("profili_kaydedildi")),
+                    Level::Success,
+                );
+                self.reload_requested = true;
+            }
+            Err(error) => self.notify(error, Level::Error),
+        }
+    }
+
+    /// x on the Profiles tab: delete the selected custom profile.
+    fn begin_remove_custom_profile(&mut self) {
+        let Some(profile) = self.selected_custom_profile() else {
+            return;
+        };
+
+        self.pending = Some(Pending::RemoveCustomProfile {
+            name: profile.name.clone(),
+            path: profile.path.clone(),
+        });
         self.overlay = Overlay::Confirm;
     }
 
@@ -1319,6 +1528,9 @@ impl App {
             "",
             "tui_help_profiles",
             "tui_help_apply",
+            "tui_help_custom_new",
+            "tui_help_custom_save",
+            "tui_help_custom_delete",
             "tui_help_backups",
             "tui_help_backup",
             "tui_help_restore",
@@ -1405,7 +1617,7 @@ impl App {
                 }
             }
             Tab::Profiles => {
-                let count = profiles::ids().len();
+                let count = self.profile_count();
                 if count > 0 {
                     self.profiles_selected = (self.profiles_selected + 1).min(count - 1);
                 }

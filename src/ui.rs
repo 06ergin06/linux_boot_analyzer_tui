@@ -8,6 +8,7 @@ use ratatui::widgets::{
 
 use crate::app::{App, Level, Overlay, Tab};
 use crate::autostart::AutostartEntry;
+use crate::custom_profiles::{self, CustomProfile};
 use crate::i18n;
 use crate::i18n::Lang;
 use crate::privilege::Action;
@@ -499,7 +500,14 @@ fn render_profiles(frame: &mut Frame, app: &App, area: Rect) {
     let [list_area, detail_area] =
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(area);
 
-    render_profile_list(frame, app, list_area);
+    // The ready-made profiles keep their own panel; the user's own profiles are
+    // listed under it so both stay reachable with the same arrow keys.
+    let builtin_rows = profiles::ids().len() as u16 + 3;
+    let [builtin_area, custom_area] =
+        Layout::vertical([Constraint::Length(builtin_rows), Constraint::Min(4)]).areas(list_area);
+
+    render_profile_list(frame, app, builtin_area);
+    render_custom_profile_list(frame, app, custom_area);
     render_profile_detail(frame, app, detail_area);
 }
 
@@ -558,7 +566,46 @@ fn render_profile_list(frame: &mut Frame, app: &App, area: Rect) {
     .row_highlight_style(highlight())
     .highlight_symbol("> ");
 
-    let mut state = TableState::default().with_selected(Some(app.profiles_selected));
+    let selected = (app.profiles_selected < ids.len()).then_some(app.profiles_selected);
+    let mut state = TableState::default().with_selected(selected);
+    frame.render_stateful_widget(table, area, &mut state);
+}
+
+/// The profiles the user saved themselves.
+fn render_custom_profile_list(frame: &mut Frame, app: &App, area: Rect) {
+    let profiles = app.custom_profiles();
+    let block = panel("user_custom_profilleri");
+
+    if profiles.is_empty() {
+        frame.render_widget(
+            Paragraph::new(i18n::t("no_custom_profiles"))
+                .style(muted())
+                .block(block)
+                .wrap(Wrap { trim: true }),
+            area,
+        );
+        return;
+    }
+
+    let rows = profiles.iter().map(|profile| {
+        Row::new(vec![
+            Cell::from(profile.name.as_str()),
+            Cell::from(profile.services.len().to_string()).style(muted()),
+        ])
+    });
+
+    let table = Table::new(rows, [Constraint::Min(12), Constraint::Length(13)])
+        .header(
+            Row::new([i18n::t("tui_profile"), i18n::t("service_kurali")])
+                .style(Style::new().fg(ACCENT).bold()),
+        )
+        .block(block)
+        .row_highlight_style(highlight())
+        .highlight_symbol("> ");
+
+    // The cursor only shows here when it is on one of these rows.
+    let selected = app.profiles_selected.checked_sub(profiles::ids().len());
+    let mut state = TableState::default().with_selected(selected);
     frame.render_stateful_widget(table, area, &mut state);
 }
 
@@ -589,45 +636,158 @@ fn render_backup_list(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_stateful_widget(table, area, &mut state);
 }
 
-fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
-    let lines = match app.selected_profile() {
-        Some(id) => {
-            let profile = profiles::data().profiles.get(id);
-            let name = profile.map_or(id, |profile| profile.name());
-            let description = profile.map_or("", |profile| profile.description());
-
-            let mut lines = vec![
-                Line::from(i18n::fill(i18n::t("tui_profile_label"), &[name])).bold(),
-                Line::from(description).style(muted()),
-                Line::from(""),
-                Line::from(savings_line(app.profile_savings(id)))
-                    .style(savings_style(app.profile_savings(id))),
-                Line::from(""),
-            ];
-
-            // The same ✔/✘ list the profile cards show in the GTK application.
-            for (enable, label) in profiles::checklist(id) {
-                let (mark, style) = if enable {
-                    ("✔", Style::new().fg(OK).bold())
-                } else {
-                    ("✘", Style::new().fg(BAD).bold())
-                };
-                lines.push(Line::from(vec![
-                    Span::styled(mark, style),
-                    Span::raw(format!("  {label}")),
-                ]));
-            }
-            lines
-        }
-        None => vec![Line::from(i18n::t("tui_no_profile_selected")).style(muted())],
+/// The form that makes a new custom profile: a name and one switch per
+/// service the original dialog offers.
+fn render_profile_form(frame: &mut Frame, app: &App) {
+    let name_pointer = if app.profile_form_index == 0 {
+        ">"
+    } else {
+        " "
     };
+    let mut lines = vec![
+        Line::from(i18n::t("yeni_profile_name_girin")),
+        Line::from(vec![
+            Span::raw(format!("{name_pointer} ")),
+            Span::styled(format!("{}: ", i18n::t("profile_name_lbl")), muted()),
+            Span::styled(app.profile_name.as_str(), Style::new().fg(ACCENT)),
+        ]),
+        Line::from(""),
+        Line::from(format!(
+            "{}  {}",
+            i18n::t("service_kurallari_lbl"),
+            i18n::t("service_kurallari_sub")
+        ))
+        .style(muted()),
+    ];
 
+    for (index, (_, label_key)) in custom_profiles::CANDIDATES.iter().enumerate() {
+        let checked = app
+            .profile_form_checked
+            .get(index)
+            .copied()
+            .unwrap_or(false);
+        let pointer = if app.profile_form_index == index + 1 {
+            ">"
+        } else {
+            " "
+        };
+        let mark = if checked { "x" } else { " " };
+        lines.push(Line::from(format!(
+            "{pointer} [{mark}] {}",
+            i18n::t(label_key)
+        )));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(i18n::t("tui_bar_profile_form")).style(muted()));
+
+    let area = centered_rect(64, block_height(&lines, 64), frame.area());
+    frame.render_widget(Clear, area);
     frame.render_widget(
         Paragraph::new(lines)
+            .block(panel("yeni_custom_profile_btn"))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+/// The prompt that names the profile "save current state" writes.
+fn render_profile_name(frame: &mut Frame, app: &App) {
+    let lines = vec![
+        Line::from(i18n::t("yeni_profile_name_girin")),
+        Line::from(app.profile_name.as_str()).style(Style::new().fg(ACCENT)),
+        Line::from(""),
+        Line::from(i18n::t("tui_bar_profile_name")).style(muted()),
+    ];
+
+    let area = centered_rect(50, block_height(&lines, 50), frame.area());
+    frame.render_widget(Clear, area);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(panel("profili_save_title"))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn render_profile_detail(frame: &mut Frame, app: &App, area: Rect) {
+    frame.render_widget(
+        Paragraph::new(profile_detail_lines(app))
             .block(panel("tui_details"))
             .wrap(Wrap { trim: true }),
         area,
     );
+}
+
+/// The card of the highlighted profile, ready-made or the user's own.
+fn profile_detail_lines(app: &App) -> Vec<Line<'_>> {
+    if let Some(profile) = app.selected_custom_profile() {
+        return custom_profile_lines(app, profile);
+    }
+
+    let Some(id) = app.selected_profile() else {
+        return vec![Line::from(i18n::t("tui_no_profile_selected")).style(muted())];
+    };
+
+    let profile = profiles::data().profiles.get(id);
+    let name = profile.map_or(id, |profile| profile.name());
+    let description = profile.map_or("", |profile| profile.description());
+
+    let mut lines = vec![
+        Line::from(i18n::fill(i18n::t("tui_profile_label"), &[name])).bold(),
+        Line::from(description).style(muted()),
+        Line::from(""),
+        Line::from(savings_line(app.profile_savings(id)))
+            .style(savings_style(app.profile_savings(id))),
+        Line::from(""),
+    ];
+
+    // The same ✔/✘ list the profile cards show in the GTK application.
+    for line in checklist_lines(profiles::checklist(id)) {
+        lines.push(line);
+    }
+    lines
+}
+
+/// The card of a user-created profile.
+fn custom_profile_lines<'a>(app: &'a App, profile: &'a CustomProfile) -> Vec<Line<'a>> {
+    let savings = app.custom_profile_savings(profile);
+    let mut lines = vec![
+        Line::from(profile.name.as_str()).bold(),
+        Line::from(format!(
+            "{} {}",
+            profile.services.len(),
+            i18n::t("service_kurali")
+        ))
+        .style(muted()),
+        Line::from(""),
+        Line::from(savings_line(savings)).style(savings_style(savings)),
+        Line::from(""),
+        detail_line(i18n::t("tui_file"), &profile.path.display().to_string()),
+    ];
+
+    for line in checklist_lines(profiles::checklist_of(profile.services.iter())) {
+        lines.push(line);
+    }
+    lines
+}
+
+/// The ✔/✘ lines of a profile's service rules.
+fn checklist_lines<'a>(items: Vec<(bool, &'a str)>) -> Vec<Line<'a>> {
+    items
+        .into_iter()
+        .map(|(enable, label)| {
+            let (mark, style) = if enable {
+                ("✔", Style::new().fg(OK).bold())
+            } else {
+                ("✘", Style::new().fg(BAD).bold())
+            };
+            Line::from(vec![
+                Span::styled(mark, style),
+                Span::raw(format!("  {label}")),
+            ])
+        })
+        .collect()
 }
 
 fn render_backup_detail(frame: &mut Frame, app: &App, area: Rect) {
@@ -698,6 +858,8 @@ fn action_hints(app: &App) -> &'static str {
         Overlay::Password => return i18n::t("tui_bar_password"),
         Overlay::Form => return i18n::t("tui_bar_form"),
         Overlay::Delay => return i18n::t("tui_bar_delay"),
+        Overlay::ProfileForm => return i18n::t("tui_bar_profile_form"),
+        Overlay::ProfileName => return i18n::t("tui_bar_profile_name"),
         Overlay::Language => return i18n::t("tui_bar_language"),
         Overlay::None => {}
     }
@@ -722,6 +884,8 @@ fn render_overlay(frame: &mut Frame, app: &App) {
         Overlay::Confirm => render_confirm(frame, app),
         Overlay::Password => render_password(frame, app),
         Overlay::Form => render_form(frame, app),
+        Overlay::ProfileForm => render_profile_form(frame, app),
+        Overlay::ProfileName => render_profile_name(frame, app),
         Overlay::Delay => render_delay(frame, app),
         Overlay::Language => render_language(frame, app),
     }

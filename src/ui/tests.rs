@@ -1,4 +1,5 @@
 use super::*;
+use crate::custom_profiles::CustomProfile;
 use crate::system::{BlameEntry, BootSummary, Service, SystemData, SystemInfo};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Terminal;
@@ -37,6 +38,7 @@ fn sample_data() -> SystemData {
             enabled: false,
         }]),
         backups: Ok(Vec::new()),
+        custom_profiles: Ok(Vec::new()),
     }
 }
 
@@ -369,4 +371,75 @@ fn a_wrapping_autostart_path_is_not_clipped() {
     // The path is broken over the pane edge but not cut off.
     assert!(text.contains("File:"), "{text}");
     assert!(text.contains("esktop"), "{text}");
+}
+
+/// A snapshot that also holds one profile the user saved.
+fn with_custom_profile(tab: Tab) -> App {
+    let mut app = loaded_app(tab);
+    if let Some(data) = app.data.as_mut() {
+        data.custom_profiles = Ok(vec![CustomProfile {
+            name: "My Profile".to_string(),
+            services: std::collections::BTreeMap::from([
+                ("cups.service".to_string(), "disable".to_string()),
+                ("bluetooth.service".to_string(), "disable".to_string()),
+            ]),
+            path: std::path::PathBuf::from(
+                "/home/user/.config/linux_boot_analyzer_tui/profiles/myprofile.json",
+            ),
+        }]);
+    }
+    app
+}
+
+#[test]
+fn the_profiles_tab_lists_the_users_own_profiles() {
+    let mut app = with_custom_profile(Tab::Profiles);
+    app.profiles_selected = crate::profiles::ids().len();
+
+    let text = render_to_string(&app, 100, 24);
+
+    // Both groups are on screen, and the cursor marks the custom row.
+    assert!(text.contains("User Custom Profiles"), "{text}");
+    assert!(text.contains("> My Profile"), "{text}");
+    assert!(text.contains("Minimum Services"), "{text}");
+    // The detail pane shows the rule count and the rules themselves.
+    assert!(text.contains("2 service rules"), "{text}");
+    assert!(text.contains("Printer Service (CUPS)"), "{text}");
+}
+
+#[test]
+fn an_empty_custom_list_says_so() {
+    let text = render_to_string(&loaded_app(Tab::Profiles), 100, 24);
+    assert!(text.contains("No custom profiles found."), "{text}");
+}
+
+#[test]
+fn the_new_profile_form_shows_every_candidate_and_its_hint() {
+    let mut app = loaded_app(Tab::Profiles);
+    app.overlay = Overlay::ProfileForm;
+    app.profile_name = "Work".to_string();
+    app.profile_form_index = 1;
+    app.profile_form_checked[0] = true;
+
+    let text = render_to_string(&app, 90, 30);
+
+    assert!(text.contains("Create New Custom Profile"), "{text}");
+    assert!(text.contains("Profile Name: Work"), "{text}");
+    assert!(text.contains("> [x] Printer Service (CUPS)"), "{text}");
+    assert!(text.contains("[ ] Cellular Modem Controller"), "{text}");
+    // The key hint is its own bottom row, so it survives a wrapped form.
+    assert!(text.contains("Enter: create"), "{text}");
+}
+
+#[test]
+fn the_save_prompt_shows_the_suggested_name() {
+    let mut app = loaded_app(Tab::Profiles);
+    app.overlay = Overlay::ProfileName;
+    app.profile_name = "My Custom Profile".to_string();
+
+    let text = render_to_string(&app, 80, 24);
+
+    assert!(text.contains("Save Profile"), "{text}");
+    assert!(text.contains("My Custom Profile"), "{text}");
+    assert!(text.contains("Enter: save"), "{text}");
 }

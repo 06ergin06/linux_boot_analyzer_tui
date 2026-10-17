@@ -5,6 +5,7 @@ mod app;
 mod autostart;
 mod backups;
 mod clipboard;
+mod custom_profiles;
 mod filters;
 mod i18n;
 mod privilege;

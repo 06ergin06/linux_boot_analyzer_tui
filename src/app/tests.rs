@@ -52,6 +52,7 @@ fn app_with_services() -> App {
             enabled: true,
         }]),
         backups: Ok(Vec::new()),
+        custom_profiles: Ok(Vec::new()),
     });
     // The helper is about the table, not about the default tip filter.
     app.tip_filter = TipFilter::All;
@@ -593,6 +594,125 @@ fn applying_a_profile_confirms_with_a_plan() {
     app.handle_key(press(KeyCode::Char('a')));
     assert_eq!(app.overlay, Overlay::Confirm);
     assert!(app.confirmation_prompt().starts_with("Apply this profile?"));
+}
+
+/// Add one profile the user saved themselves.
+fn add_custom_profile(app: &mut App, name: &str, services: &[(&str, &str)]) {
+    if let Some(data) = app.data.as_mut() {
+        data.custom_profiles = Ok(vec![CustomProfile {
+            name: name.to_string(),
+            services: services
+                .iter()
+                .map(|(unit, rule)| ((*unit).to_string(), (*rule).to_string()))
+                .collect(),
+            path: PathBuf::from("/tmp/custom-profile.json"),
+        }]);
+    }
+}
+
+#[test]
+fn profile_navigation_spans_both_groups() {
+    let mut app = app_with_services();
+    add_custom_profile(&mut app, "Mine", &[("cups.service", "disable")]);
+    app.tab = Tab::Profiles;
+
+    // The cursor does not stop at the last built-in profile.
+    for _ in 0..profiles::ids().len() {
+        app.handle_key(press(KeyCode::Char('j')));
+    }
+    assert_eq!(app.profiles_selected, profiles::ids().len());
+    assert_eq!(
+        app.selected_custom_profile()
+            .map(|profile| profile.name.as_str()),
+        Some("Mine")
+    );
+    assert!(app.selected_profile().is_none());
+
+    // ...and it does not run past the last one either.
+    app.handle_key(press(KeyCode::Char('j')));
+    assert_eq!(app.profiles_selected, app.profile_count() - 1);
+}
+
+#[test]
+fn a_custom_profile_is_applied_through_the_same_confirmation() {
+    let mut app = app_with_services();
+    add_cups(&mut app);
+    add_custom_profile(&mut app, "Mine", &[("cups.service", "disable")]);
+    app.tab = Tab::Profiles;
+    app.profiles_selected = profiles::ids().len();
+
+    app.handle_key(press(KeyCode::Char('a')));
+
+    assert_eq!(app.overlay, Overlay::Confirm);
+    let prompt = app.confirmation_prompt();
+    assert!(prompt.starts_with("Apply this profile?"), "{prompt}");
+    assert!(prompt.contains("disable 1"), "{prompt}");
+}
+
+#[test]
+fn deleting_a_custom_profile_asks_first() {
+    let mut app = app_with_services();
+    add_custom_profile(&mut app, "Mine", &[("cups.service", "disable")]);
+    app.tab = Tab::Profiles;
+    app.profiles_selected = profiles::ids().len();
+
+    app.handle_key(press(KeyCode::Char('x')));
+
+    assert_eq!(app.overlay, Overlay::Confirm);
+    assert!(app.confirmation_prompt().contains("Mine"));
+}
+
+#[test]
+fn built_in_profiles_are_never_deleted() {
+    let mut app = app_with_services();
+    add_custom_profile(&mut app, "Mine", &[("cups.service", "disable")]);
+    app.tab = Tab::Profiles;
+
+    app.handle_key(press(KeyCode::Char('x')));
+
+    assert_eq!(app.overlay, Overlay::None);
+    assert!(app.pending.is_none());
+}
+
+#[test]
+fn the_new_profile_form_toggles_rules_and_demands_a_name() {
+    let mut app = app_with_services();
+    app.tab = Tab::Profiles;
+
+    app.handle_key(press(KeyCode::Char('n')));
+    assert_eq!(app.overlay, Overlay::ProfileForm);
+    assert_eq!(app.profile_form_index, 0);
+    assert!(app.profile_form_checked.iter().all(|checked| !checked));
+
+    // The first row is the name; space only toggles the rule rows.
+    app.handle_key(press(KeyCode::Char(' ')));
+    assert!(app.profile_form_checked.iter().all(|checked| !checked));
+
+    app.handle_key(press(KeyCode::Down));
+    app.handle_key(press(KeyCode::Char(' ')));
+    assert!(app.profile_form_checked[0]);
+
+    // An empty name is refused instead of writing a file.
+    app.handle_key(press(KeyCode::Enter));
+    assert_eq!(app.overlay, Overlay::ProfileForm);
+    assert_eq!(app.message.as_deref(), Some("Please enter a profile name."));
+}
+
+#[test]
+fn saving_the_current_state_asks_for_a_name() {
+    let mut app = app_with_services();
+    app.tab = Tab::Profiles;
+
+    app.handle_key(press(KeyCode::Char('w')));
+
+    assert_eq!(app.overlay, Overlay::ProfileName);
+    assert_eq!(app.profile_name, "My Custom Profile");
+
+    // The key belongs to the profiles tab, not to the other ones.
+    let mut services = app_with_services();
+    services.tab = Tab::Services;
+    services.handle_key(press(KeyCode::Char('w')));
+    assert_eq!(services.overlay, Overlay::None);
 }
 
 #[test]

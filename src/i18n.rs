@@ -331,6 +331,60 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ("tui_plan_start", "start", "başlat"),
     ("tui_plan_disable", "disable", "kapat"),
     ("tui_plan_stop", "stop", "durdur"),
+    (
+        "user_custom_profilleri",
+        "User Custom Profiles",
+        "Kullanıcı Özel Profilleri",
+    ),
+    (
+        "no_custom_profiles",
+        "No custom profiles found.",
+        "Kayıtlı özel profil bulunamadı.",
+    ),
+    (
+        "yeni_custom_profile_btn",
+        "Create New Custom Profile",
+        "Yeni Özel Profil Oluştur",
+    ),
+    ("custom_profilim", "My Custom Profile", "Özel Profilim"),
+    ("service_kurali", "service rules", "hizmet kuralı"),
+    ("profili_save_title", "Save Profile", "Profili Kaydet"),
+    (
+        "yeni_profile_name_girin",
+        "Enter new profile name:",
+        "Yeni profil adı girin:",
+    ),
+    ("profile_name_lbl", "Profile Name", "Profil Adı"),
+    (
+        "profile_name_girin_error",
+        "Please enter a profile name.",
+        "Lütfen profil adı girin.",
+    ),
+    (
+        "service_kurallari_lbl",
+        "Service Rules:",
+        "Hizmet Kuralları:",
+    ),
+    (
+        "service_kurallari_sub",
+        "On = Enabled, Off = Disabled",
+        "Açık = Etkinleştirilir, Kapalı = Devre dışı bırakılır",
+    ),
+    (
+        "profili_kaydedildi",
+        "profile saved.",
+        "profili kaydedildi.",
+    ),
+    (
+        "custom_profile_olusturuldu",
+        "Custom profile '{}' successfully created.",
+        "Özel profil '{}' başarıyla oluşturuldu.",
+    ),
+    (
+        "custom_profile_deleted",
+        "Custom profile deleted.",
+        "Özel profil silindi.",
+    ),
     // --- Overlays ---------------------------------------------------------
     ("tui_confirm", "Confirm", "Onayla"),
     (
@@ -452,6 +506,16 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Tab: sonraki alan    Enter: oluştur    Esc: iptal",
     ),
     (
+        "tui_bar_profile_form",
+        "Tab/arrows: move    space: on/off    Enter: create    Esc: cancel",
+        "Tab/oklar: gez    boşluk: aç/kapat    Enter: oluştur    Esc: iptal",
+    ),
+    (
+        "tui_bar_profile_name",
+        "Enter: save    Esc: cancel",
+        "Enter: kaydet    Esc: iptal",
+    ),
+    (
         "tui_bar_delay",
         "digits or Up/Down: seconds    Enter: save    Esc: cancel",
         "rakam veya Yukarı/Aşağı: saniye    Enter: kaydet    Esc: iptal",
@@ -478,8 +542,8 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     (
         "tui_bar_profiles",
-        "Enter: apply    b: restore point",
-        "Enter: uygula    b: geri yükleme noktası",
+        "Enter: apply    n: new    w: save state    x: delete    b: restore point",
+        "Enter: uygula    n: yeni    w: durum kaydet    x: sil    b: geri yükleme noktası",
     ),
     (
         "tui_bar_backups",
@@ -587,6 +651,21 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "  Enter or a       apply the selected profile",
         "  Enter veya a     seçili profili uygula",
     ),
+    (
+        "tui_help_custom_new",
+        "  n                create a custom profile",
+        "  n                özel profil oluştur",
+    ),
+    (
+        "tui_help_custom_save",
+        "  w                save the current state as a profile",
+        "  w                mevcut durumu profil olarak kaydet",
+    ),
+    (
+        "tui_help_custom_delete",
+        "  x                delete the selected custom profile",
+        "  x                seçili özel profili sil",
+    ),
     ("tui_help_backups", "Backups", "Yedekler"),
     (
         "tui_help_backup",
@@ -632,6 +711,11 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "tui_delete_backup_prompt",
         "Delete backup \"{}\"?",
         "\"{}\" yedeği silinsin mi?",
+    ),
+    (
+        "tui_delete_profile_prompt",
+        "Delete the custom profile \"{}\"?",
+        "\"{}\" özel profili silinsin mi?",
     ),
     (
         "tui_apply_profile_prompt",
@@ -706,6 +790,26 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "PostgreSQL Veritabanı",
     ),
     ("ssh_desc", "SSH Remote Access", "SSH Uzaktan Erişim"),
+    (
+        "cups_browsed_desc",
+        "Network Printer Discoverer",
+        "Ağ Yazıcısı Bulucu",
+    ),
+    (
+        "mysql_desc",
+        "MySQL / MariaDB Database",
+        "MySQL / MariaDB Veritabanı",
+    ),
+    (
+        "avahi_desc",
+        "Local Network Discovery (Avahi)",
+        "Yerel Ağ Keşfi (Avahi)",
+    ),
+    (
+        "modem_desc",
+        "Cellular Modem Controller",
+        "Hücresel Modem Kontrolü",
+    ),
     ("unknown", "Unknown", "Bilinmiyor"),
 ];
 

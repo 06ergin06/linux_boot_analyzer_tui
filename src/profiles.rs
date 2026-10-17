@@ -97,10 +97,15 @@ pub fn checklist(profile_id: &str) -> Vec<(bool, &'static str)> {
     let Some(profile) = data().profiles.get(profile_id) else {
         return Vec::new();
     };
+    checklist_of(profile.services.iter())
+}
 
-    let mut items: Vec<(bool, &'static str)> = profile
-        .services
-        .iter()
+/// The same checklist for an arbitrary set of rules, such as a user's own
+/// profile: services it enables come first (✔), then the ones it disables (✘).
+pub fn checklist_of<'a>(
+    services: impl Iterator<Item = (&'a String, &'a String)>,
+) -> Vec<(bool, &'a str)> {
+    let mut items: Vec<(bool, &'a str)> = services
         .map(|(name, action)| (action == "enable", friendly_name(name)))
         .collect();
 
@@ -109,7 +114,7 @@ pub fn checklist(profile_id: &str) -> Vec<(bool, &'static str)> {
 }
 
 /// Friendly label for a unit name, falling back to the unit name itself.
-fn friendly_name(name: &'static str) -> &'static str {
+fn friendly_name(name: &str) -> &str {
     let Some(key) = data().profile_service_labels.get(name) else {
         return name;
     };

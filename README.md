@@ -14,7 +14,8 @@ interface is in English and Turkish.
 - **Services** – list systemd units, search and filter them, and enable,
   disable, start, stop or mask one.
 - **Autostart** – manage the entries in `~/.config/autostart`.
-- **Profiles** – apply a ready-made profile (Office, Developer, Minimum).
+- **Profiles** – apply a ready-made profile (Office, Developer, Minimum) or
+  create your own.
 - **Backups** – create a restore point and go back to it later.
 
 ## Requirements

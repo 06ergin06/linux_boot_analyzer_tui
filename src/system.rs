@@ -9,6 +9,7 @@ use std::process::Command;
 
 use crate::autostart::{self, AutostartEntry};
 use crate::backups::{self, Backup};
+use crate::custom_profiles::{self, CustomProfile};
 use crate::privilege;
 
 /// Everything the UI needs, gathered on a background thread.
@@ -19,6 +20,7 @@ pub struct SystemData {
     pub services: Result<Vec<Service>, String>,
     pub autostart: Result<Vec<AutostartEntry>, String>,
     pub backups: Result<Vec<Backup>, String>,
+    pub custom_profiles: Result<Vec<CustomProfile>, String>,
 }
 
 /// Gather all data. Each section can fail independently.
@@ -30,6 +32,7 @@ pub fn load() -> SystemData {
         services: services(),
         autostart: autostart::entries(),
         backups: backups::list(),
+        custom_profiles: custom_profiles::list(),
     }
 }
 
