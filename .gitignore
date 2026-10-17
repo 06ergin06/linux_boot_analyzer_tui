@@ -2,3 +2,7 @@
 /dist
 /AGENTS.md
 /boot-report-*.txt
+# makepkg, when a PKGBUILD under contrib/aur is built in place
+/contrib/aur/*/pkg/
+/contrib/aur/*/src/
+/contrib/aur/*/*.pkg.tar.*

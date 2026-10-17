@@ -37,6 +37,9 @@ cannot write there:
 curl -fsSL https://raw.githubusercontent.com/06ergin06/linux_boot_analyzer_tui/master/install.sh | sh
 ```
 
+On Arch, `linux-boot-analyzer-bin` (the released binary) and
+`linux-boot-analyzer-git` (built from source) are prepared under `contrib/aur/`.
+
 Or download the archive for your architecture from the
 [releases page](https://github.com/06ergin06/linux_boot_analyzer_tui/releases)
 and unpack the binary somewhere on your `PATH`, or build it yourself:
