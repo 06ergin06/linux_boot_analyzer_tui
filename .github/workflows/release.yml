@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish the archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check the tag against the manifest
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match version $version" >&2
+            exit 1
+          fi
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Start, navigate and quit
+        run: |
+          (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./target/release/linux_boot_analyzer_tui" /dev/null
+          ./target/release/linux_boot_analyzer_tui --version
+
+      - name: Package
+        run: |
+          name="linux_boot_analyzer_tui-${GITHUB_REF_NAME#v}-x86_64-unknown-linux-gnu"
+          mkdir -p "dist/$name"
+          install -m 755 target/release/linux_boot_analyzer_tui "dist/$name/"
+          cp README.md CHANGELOG.md LICENSE "dist/$name/"
+          tar -C dist -czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.tar.gz
+            *.tar.gz.sha256
+          generate_release_notes: true
