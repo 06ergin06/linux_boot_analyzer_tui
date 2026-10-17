@@ -694,6 +694,50 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
         "Disabled {} service(s).",
         "{} hizmet kapatıldı.",
     ),
+    ("err_run", "could not run {}: {}", "{} çalıştırılamadı: {}"),
+    ("err_exit", "{} exited with an error", "{} hata verdi"),
+    (
+        "err_parse",
+        "could not read the output of {}",
+        "{} çıktısı okunamadı",
+    ),
+    ("err_read_path", "could not read {}: {}", "{} okunamadı: {}"),
+    (
+        "err_create_dir",
+        "could not create {}: {}",
+        "{} oluşturulamadı: {}",
+    ),
+    (
+        "err_write_path",
+        "could not write {}: {}",
+        "{} yazılamadı: {}",
+    ),
+    (
+        "err_remove_path",
+        "could not remove {}: {}",
+        "{} silinemedi: {}",
+    ),
+    (
+        "err_write_profile",
+        "could not write the profile: {}",
+        "profil yazılamadı: {}",
+    ),
+    (
+        "err_encode_backup",
+        "could not encode the backup: {}",
+        "yedek kodlanamadı: {}",
+    ),
+    (
+        "err_sudo",
+        "could not run sudo: {}",
+        "sudo çalıştırılamadı: {}",
+    ),
+    ("err_sudo_failed", "sudo failed: {}", "sudo başarısız: {}"),
+    (
+        "err_sudo_password",
+        "could not send the password to sudo: {}",
+        "parola sudo'ya gönderilemedi: {}",
+    ),
     ("prof_min_name", "Minimum Services", "Minimum Servis Modu"),
     (
         "prof_min_desc",

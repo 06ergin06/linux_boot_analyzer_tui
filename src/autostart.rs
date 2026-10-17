@@ -3,6 +3,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::i18n;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutostartEntry {
     pub path: PathBuf,
@@ -24,7 +26,12 @@ pub fn entries() -> Result<Vec<AutostartEntry>, String> {
     let listing = match fs::read_dir(&dir) {
         Ok(listing) => listing,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(err) => return Err(format!("could not read {}: {err}", dir.display())),
+        Err(err) => {
+            return Err(i18n::fill(
+                i18n::t("err_read_path"),
+                &[&dir.display().to_string(), &err.to_string()],
+            ));
+        }
     };
 
     let mut entries = Vec::new();
@@ -198,18 +205,32 @@ fn render(name: &str, exec: &str, comment: &str, icon: &str, enabled: bool, dela
 
 pub fn add(name: &str, command: &str) -> Result<PathBuf, String> {
     let dir = dir();
-    fs::create_dir_all(&dir).map_err(|err| format!("could not create {}: {err}", dir.display()))?;
+    fs::create_dir_all(&dir).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_create_dir"),
+            &[&dir.display().to_string(), &err.to_string()],
+        )
+    })?;
 
     let path = unique_path(&dir, name);
     let contents = render(name, command, "", "system-run", true, 0);
-    fs::write(&path, contents)
-        .map_err(|err| format!("could not write {}: {err}", path.display()))?;
+    fs::write(&path, contents).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_write_path"),
+            &[&path.display().to_string(), &err.to_string()],
+        )
+    })?;
 
     Ok(path)
 }
 
 pub fn remove(path: &Path) -> Result<(), String> {
-    fs::remove_file(path).map_err(|err| format!("could not remove {}: {err}", path.display()))
+    fs::remove_file(path).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_remove_path"),
+            &[&path.display().to_string(), &err.to_string()],
+        )
+    })
 }
 
 pub fn set_enabled(entry: &AutostartEntry, enabled: bool) -> Result<(), String> {
@@ -221,11 +242,19 @@ pub fn set_delay(entry: &AutostartEntry, delay: u32) -> Result<(), String> {
 }
 
 fn save(entry: &AutostartEntry, enabled: bool, delay: u32) -> Result<(), String> {
-    let contents = fs::read_to_string(&entry.path)
-        .map_err(|err| format!("could not read {}: {err}", entry.path.display()))?;
+    let contents = fs::read_to_string(&entry.path).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_read_path"),
+            &[&entry.path.display().to_string(), &err.to_string()],
+        )
+    })?;
     let updated = update(&contents, entry, enabled, delay);
-    fs::write(&entry.path, updated)
-        .map_err(|err| format!("could not write {}: {err}", entry.path.display()))
+    fs::write(&entry.path, updated).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_write_path"),
+            &[&entry.path.display().to_string(), &err.to_string()],
+        )
+    })
 }
 
 fn update(contents: &str, entry: &AutostartEntry, enabled: bool, delay: u32) -> String {

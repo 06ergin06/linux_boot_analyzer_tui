@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n;
+
 pub const CANDIDATES: [(&str, &str); 9] = [
     ("cups.service", "cups_service_desc"),
     ("cups-browsed.service", "cups_browsed_desc"),
@@ -53,7 +55,12 @@ pub fn save(name: &str, services: &BTreeMap<String, String>) -> Result<PathBuf, 
 }
 
 pub fn remove(path: &Path) -> Result<(), String> {
-    fs::remove_file(path).map_err(|err| format!("could not remove {}: {err}", path.display()))
+    fs::remove_file(path).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_remove_path"),
+            &[&path.display().to_string(), &err.to_string()],
+        )
+    })
 }
 
 pub fn selections_of(services: &BTreeMap<String, String>) -> (Vec<String>, Vec<String>) {
@@ -84,7 +91,12 @@ fn list_in(dir: &Path) -> Result<Vec<CustomProfile>, String> {
     let listing = match fs::read_dir(dir) {
         Ok(listing) => listing,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(err) => return Err(format!("could not read {}: {err}", dir.display())),
+        Err(err) => {
+            return Err(i18n::fill(
+                i18n::t("err_read_path"),
+                &[&dir.display().to_string(), &err.to_string()],
+            ));
+        }
     };
 
     let mut profiles = Vec::new();
@@ -113,7 +125,12 @@ fn list_in(dir: &Path) -> Result<Vec<CustomProfile>, String> {
 }
 
 fn save_in(dir: &Path, name: &str, services: &BTreeMap<String, String>) -> Result<PathBuf, String> {
-    fs::create_dir_all(dir).map_err(|err| format!("could not create {}: {err}", dir.display()))?;
+    fs::create_dir_all(dir).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_create_dir"),
+            &[&dir.display().to_string(), &err.to_string()],
+        )
+    })?;
 
     let path = unique_path(dir, name);
     let file = ProfileFile {
@@ -121,11 +138,15 @@ fn save_in(dir: &Path, name: &str, services: &BTreeMap<String, String>) -> Resul
         services: services.clone(),
     };
     let mut contents = serde_json::to_string_pretty(&file)
-        .map_err(|err| format!("could not write the profile: {err}"))?;
+        .map_err(|err| i18n::fill(i18n::t("err_write_profile"), &[&err.to_string()]))?;
     contents.push('\n');
 
-    fs::write(&path, contents)
-        .map_err(|err| format!("could not write {}: {err}", path.display()))?;
+    fs::write(&path, contents).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_write_path"),
+            &[&path.display().to_string(), &err.to_string()],
+        )
+    })?;
     Ok(path)
 }
 

@@ -144,17 +144,18 @@ pub fn run(args: &[&str], password: &str) -> Result<String, String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|err| format!("could not run sudo: {err}"))?;
+        .map_err(|err| i18n::fill(i18n::t("err_sudo"), &[&err.to_string()]))?;
 
     if let Some(stdin) = child.stdin.as_mut() {
-        writeln!(stdin, "{password}").map_err(|err| format!("could not send password: {err}"))?;
+        writeln!(stdin, "{password}")
+            .map_err(|err| i18n::fill(i18n::t("err_sudo_password"), &[&err.to_string()]))?;
     }
     // Close stdin so sudo stops waiting for input.
     drop(child.stdin.take());
 
     let output = child
         .wait_with_output()
-        .map_err(|err| format!("sudo failed: {err}"))?;
+        .map_err(|err| i18n::fill(i18n::t("err_sudo_failed"), &[&err.to_string()]))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);

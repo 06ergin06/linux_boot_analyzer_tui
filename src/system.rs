@@ -7,6 +7,7 @@ use std::process::Command;
 use crate::autostart::{self, AutostartEntry};
 use crate::backups::{self, Backup};
 use crate::custom_profiles::{self, CustomProfile};
+use crate::i18n;
 use crate::privilege;
 
 pub struct SystemData {
@@ -36,10 +37,10 @@ fn run(program: &str, args: &[&str]) -> Result<String, String> {
         .args(args)
         .env("LC_ALL", "C")
         .output()
-        .map_err(|err| format!("could not run {program}: {err}"))?;
+        .map_err(|err| i18n::fill(i18n::t("err_run"), &[program, &err.to_string()]))?;
 
     if !output.status.success() {
-        return Err(format!("{program} exited with an error"));
+        return Err(i18n::fill(i18n::t("err_exit"), &[program]));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
@@ -55,7 +56,7 @@ pub fn boot_summary() -> Result<BootSummary, String> {
     let output = run("systemd-analyze", &[])?;
     let first_line = output.lines().next().unwrap_or_default();
     parse_boot_summary(first_line)
-        .ok_or_else(|| "could not parse systemd-analyze output".to_string())
+        .ok_or_else(|| i18n::fill(i18n::t("err_parse"), &["systemd-analyze"]))
 }
 
 fn parse_boot_summary(line: &str) -> Option<BootSummary> {
@@ -283,8 +284,10 @@ pub struct SystemInfo {
 pub fn system_info() -> SystemInfo {
     SystemInfo {
         os: read_os_name(),
-        kernel: run("uname", &["-r"])
-            .map_or_else(|_| "Unknown".to_string(), |out| out.trim().to_string()),
+        kernel: run("uname", &["-r"]).map_or_else(
+            |_| i18n::t("unknown").to_string(),
+            |out| out.trim().to_string(),
+        ),
         ram: read_ram(),
         uptime: read_uptime(),
     }
@@ -304,7 +307,7 @@ fn read_os_name() -> String {
 
 fn read_ram() -> String {
     let Ok(contents) = fs::read_to_string("/proc/meminfo") else {
-        return "Unknown".to_string();
+        return i18n::t("unknown").to_string();
     };
     for line in contents.lines() {
         if let Some(rest) = line.strip_prefix("MemTotal:")
@@ -316,12 +319,12 @@ fn read_ram() -> String {
             return format!("{:.1} GB", kb as f64 / 1024.0 / 1024.0);
         }
     }
-    "Unknown".to_string()
+    i18n::t("unknown").to_string()
 }
 
 fn read_uptime() -> String {
     let Ok(contents) = fs::read_to_string("/proc/uptime") else {
-        return "Unknown".to_string();
+        return i18n::t("unknown").to_string();
     };
     let seconds = contents
         .split_whitespace()
@@ -354,6 +357,20 @@ mod tests {
     #[test]
     fn empty_boot_line_is_rejected() {
         assert!(parse_boot_summary("   ").is_none());
+    }
+
+    #[test]
+    fn a_missing_command_is_reported_in_the_ui_language() {
+        let err = run("no-such-program-here", &[]).unwrap_err();
+        assert!(
+            err.starts_with("could not run no-such-program-here:"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_failing_command_is_reported_in_the_ui_language() {
+        assert_eq!(run("false", &[]).unwrap_err(), "false exited with an error");
     }
 
     #[test]

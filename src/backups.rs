@@ -7,6 +7,8 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n;
+
 #[derive(Debug, Clone)]
 pub struct Backup {
     pub timestamp: String,
@@ -32,7 +34,12 @@ pub fn list() -> Result<Vec<Backup>, String> {
     let listing = match fs::read_dir(&dir) {
         Ok(listing) => listing,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(err) => return Err(format!("could not read {}: {err}", dir.display())),
+        Err(err) => {
+            return Err(i18n::fill(
+                i18n::t("err_read_path"),
+                &[&dir.display().to_string(), &err.to_string()],
+            ));
+        }
     };
 
     let mut backups = Vec::new();
@@ -64,7 +71,12 @@ pub fn list() -> Result<Vec<Backup>, String> {
 
 pub fn create(services: BTreeMap<String, String>) -> Result<Backup, String> {
     let dir = dir();
-    fs::create_dir_all(&dir).map_err(|err| format!("could not create {}: {err}", dir.display()))?;
+    fs::create_dir_all(&dir).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_create_dir"),
+            &[&dir.display().to_string(), &err.to_string()],
+        )
+    })?;
 
     let (timestamp, pretty) = now();
     let name = format!("Restore point {pretty}");
@@ -76,8 +88,13 @@ pub fn create(services: BTreeMap<String, String>) -> Result<Backup, String> {
         services: services.clone(),
     };
     let json = serde_json::to_string_pretty(&file)
-        .map_err(|err| format!("could not encode backup: {err}"))?;
-    fs::write(&path, json).map_err(|err| format!("could not write {}: {err}", path.display()))?;
+        .map_err(|err| i18n::fill(i18n::t("err_encode_backup"), &[&err.to_string()]))?;
+    fs::write(&path, json).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_write_path"),
+            &[&path.display().to_string(), &err.to_string()],
+        )
+    })?;
 
     Ok(Backup {
         timestamp,
@@ -88,7 +105,12 @@ pub fn create(services: BTreeMap<String, String>) -> Result<Backup, String> {
 }
 
 pub fn remove(path: &Path) -> Result<(), String> {
-    fs::remove_file(path).map_err(|err| format!("could not remove {}: {err}", path.display()))
+    fs::remove_file(path).map_err(|err| {
+        i18n::fill(
+            i18n::t("err_remove_path"),
+            &[&path.display().to_string(), &err.to_string()],
+        )
+    })
 }
 
 fn now() -> (String, String) {
