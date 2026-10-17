@@ -2,8 +2,7 @@
 name = "linux_boot_analyzer_tui"
 version = "1.0.1"
 edition = "2024"
-# 1.88 is not a preference: let-chains (edition 2024) need it, and so does
-# ratatui 0.30's own `rust-version`.
+# 1.88 is not a preference: let-chains (edition 2024) and ratatui 0.30 need it.
 rust-version = "1.88"
 description = "A terminal UI that analyses Linux boot time and manages systemd services"
 license = "GPL-3.0-only"
@@ -18,10 +17,8 @@ ratatui = "0.30.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 
-# A release build is what people actually run, so it is worth the build time:
-# one codegen unit and full LTO for speed, a stripped binary for size.
-# `panic = "abort"` is deliberately absent: `ratatui::run` restores the
-# terminal while the stack unwinds, and aborting would leave it in raw mode.
+# One codegen unit, LTO and a strip for the binary people actually run.
+# No `panic = "abort"`: `ratatui::run` restores the terminal while unwinding.
 [profile.release]
 lto = true
 strip = true

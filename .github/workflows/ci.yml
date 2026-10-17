@@ -60,8 +60,7 @@ jobs:
       - name: musl-gcc
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      # The same script a tag runs, so a broken release is caught here: it also
-      # refuses a binary that is not statically linked.
+      # The same script a tag runs, so a broken release is caught here.
       - name: Package
         run: sh contrib/package-release.sh "v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" "${{ matrix.target }}"
 

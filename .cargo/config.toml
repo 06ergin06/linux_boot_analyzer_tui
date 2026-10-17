@@ -1,7 +1,5 @@
-# Release binaries are static musl builds (see "CI and Release" in AGENTS.md).
-# Each architecture is built on a runner of its own kind — `ubuntu-latest` for
-# x86_64, `ubuntu-24.04-arm` for aarch64 — so the linker is always the host's
-# `musl-gcc`, which the `musl-tools` package provides.
+# Static musl binaries; each architecture is built on a runner of its own kind,
+# so `musl-gcc` is always the host's linker (from `musl-tools`).
 [target.x86_64-unknown-linux-musl]
 linker = "musl-gcc"
 

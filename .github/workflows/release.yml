@@ -3,8 +3,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
-  # Lets the whole pipeline be dry run without publishing: both binaries are
-  # built and uploaded as run artifacts, and the release itself is skipped.
+  # A dry run: both binaries are built and uploaded as run artifacts, and the
+  # release itself is skipped.
   workflow_dispatch:
 
 permissions:
@@ -58,8 +58,7 @@ jobs:
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
-      # Both architectures meet here, so one job writes the release: parallel
-      # uploads to the same release would race.
+      # Both architectures meet here: two jobs writing one release would race.
       - uses: actions/download-artifact@v8
         with:
           path: dist
