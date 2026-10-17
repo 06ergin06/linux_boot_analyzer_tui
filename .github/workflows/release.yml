@@ -10,40 +10,29 @@ permissions:
 jobs:
   release:
     name: Build and publish the archive
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - name: Check the tag against the manifest
-        run: |
-          version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "tag $GITHUB_REF_NAME does not match version $version" >&2
-            exit 1
-          fi
-
-      - name: Build
-        run: cargo build --release --locked
-
-      - name: Start, navigate and quit
-        run: |
-          (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./target/release/linux_boot_analyzer_tui" /dev/null
-          ./target/release/linux_boot_analyzer_tui --version
-
+      # 22.04 is deliberate: the runner's glibc (2.35) becomes the binary's
+      # floor, so the archive still starts on Debian 12 and Ubuntu 22.04. A
+      # newer runner would ship a binary that refuses to run there.
       - name: Package
+        run: sh contrib/package-release.sh "$GITHUB_REF_NAME"
+
+      - name: The archive works
         run: |
-          name="linux_boot_analyzer_tui-${GITHUB_REF_NAME#v}-x86_64-unknown-linux-gnu"
-          mkdir -p "dist/$name"
-          install -m 755 target/release/linux_boot_analyzer_tui "dist/$name/"
-          cp README.md CHANGELOG.md LICENSE "dist/$name/"
-          tar -C dist -czf "$name.tar.gz" "$name"
-          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          name="linux_boot_analyzer_tui-$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)-x86_64-unknown-linux-gnu"
+          tar -xzf "dist/$name.tar.gz"
+          "./$name/linux_boot_analyzer_tui" --version
+          (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./$name/linux_boot_analyzer_tui" /dev/null
+          echo "the packaged binary started, navigated and quit cleanly"
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            *.tar.gz
-            *.tar.gz.sha256
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
           generate_release_notes: true

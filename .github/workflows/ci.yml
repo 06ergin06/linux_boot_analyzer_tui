@@ -10,7 +10,7 @@ jobs:
     name: Format, lints and tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -28,7 +28,7 @@ jobs:
     name: The interface starts and quits
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build
@@ -40,11 +40,32 @@ jobs:
           (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./target/debug/linux_boot_analyzer_tui" /dev/null
           echo "the interface started, navigated and quit cleanly"
 
+  package:
+    name: The release archive can be built
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # The same script the tag does, so a broken release is caught here. It
+      # also refuses a binary that needs a newer glibc than 2.35.
+      - name: Package
+        run: sh contrib/package-release.sh "v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+
+      - name: The archive works
+        run: |
+          name="linux_boot_analyzer_tui-$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)-x86_64-unknown-linux-gnu"
+          tar -xzf "dist/$name.tar.gz"
+          "./$name/linux_boot_analyzer_tui" --version
+          (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./$name/linux_boot_analyzer_tui" /dev/null
+          echo "the packaged binary started, navigated and quit cleanly"
+
   msrv:
     name: Minimum Rust version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.88.0
       - uses: Swatinem/rust-cache@v2
       - name: Check the declared rust-version still builds
