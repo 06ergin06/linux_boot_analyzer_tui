@@ -1,6 +1,6 @@
 [package]
 name = "linux_boot_analyzer_tui"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 # 1.88 is not a preference: let-chains (edition 2024) need it, and so does
 # ratatui 0.30's own `rust-version`.
