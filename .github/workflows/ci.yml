@@ -41,21 +41,33 @@ jobs:
           echo "the interface started, navigated and quit cleanly"
 
   package:
-    name: The release archive can be built
-    runs-on: ubuntu-22.04
+    name: The release archive can be built (${{ matrix.target }})
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
 
-      # The same script the tag does, so a broken release is caught here. It
-      # also refuses a binary that needs a newer glibc than 2.35.
+      - name: musl-gcc
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      # The same script a tag runs, so a broken release is caught here: it also
+      # refuses a binary that is not statically linked.
       - name: Package
-        run: sh contrib/package-release.sh "v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+        run: sh contrib/package-release.sh "v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" "${{ matrix.target }}"
 
       - name: The archive works
         run: |
-          name="linux_boot_analyzer_tui-$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)-x86_64-unknown-linux-gnu"
+          name="linux_boot_analyzer_tui-$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)-${{ matrix.target }}"
           tar -xzf "dist/$name.tar.gz"
           "./$name/linux_boot_analyzer_tui" --version
           (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./$name/linux_boot_analyzer_tui" /dev/null

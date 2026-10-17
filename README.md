@@ -24,12 +24,12 @@ interface is in English and Turkish.
 
 - Linux with systemd.
 - `sudo` for actions that need root. The password is asked inside the app.
-- Rust 1.88 or newer to build it. The prebuilt binary needs glibc 2.35, which
-  is Debian 12 / Ubuntu 22.04 and newer.
+- Rust 1.88 or newer to build it. The prebuilt binaries are statically linked,
+  so any x86_64 or aarch64 Linux with systemd will run them.
 
 ## Install
 
-Download the archive from the
+Download the archive for your architecture from the
 [releases page](https://github.com/06ergin06/linux_boot_analyzer_tui/releases)
 and unpack the binary somewhere on your `PATH`, or build it yourself:
 
