@@ -24,7 +24,8 @@ interface is in English and Turkish.
 
 - Linux with systemd.
 - `sudo` for actions that need root. The password is asked inside the app.
-- Rust 1.88 or newer to build it.
+- Rust 1.88 or newer to build it. The prebuilt binary needs glibc 2.35, which
+  is Debian 12 / Ubuntu 22.04 and newer.
 
 ## Install
 
