@@ -373,7 +373,7 @@ fn with_custom_profile(tab: Tab) -> App {
                 ("bluetooth.service".to_string(), "disable".to_string()),
             ]),
             path: std::path::PathBuf::from(
-                "/home/user/.config/linux_boot_analyzer_tui/profiles/myprofile.json",
+                "/home/user/.config/linux-boot-analyzer-tui/profiles/myprofile.json",
             ),
         }]);
     }

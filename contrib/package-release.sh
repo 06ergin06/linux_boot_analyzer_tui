@@ -17,7 +17,7 @@ fi
 
 cargo build --release --locked --target "$TARGET"
 
-binary="target/$TARGET/release/linux_boot_analyzer_tui"
+binary="target/$TARGET/release/linux-boot-analyzer"
 [ -f "$binary" ] || {
     echo "no binary at $binary" >&2
     exit 1
@@ -35,7 +35,7 @@ if readelf -l "$binary" | grep -q 'INTERP'; then
 fi
 echo "$binary is statically linked"
 
-name="linux_boot_analyzer_tui-$version-$TARGET"
+name="linux-boot-analyzer-$version-$TARGET"
 mkdir -p "dist/$name"
 install -m 755 "$binary" "dist/$name/"
 cp README.md LICENSE "dist/$name/"

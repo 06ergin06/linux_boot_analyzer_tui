@@ -40,15 +40,15 @@ jobs:
 
       - name: The archive works
         run: |
-          name="linux_boot_analyzer_tui-$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)-${{ matrix.target }}"
+          name="linux-boot-analyzer-$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)-${{ matrix.target }}"
           tar -xzf "dist/$name.tar.gz"
-          "./$name/linux_boot_analyzer_tui" --version
-          (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./$name/linux_boot_analyzer_tui" /dev/null
+          "./$name/linux-boot-analyzer" --version
+          (sleep 1; printf '2v4q') | timeout 20 script -qec "stty rows 34 cols 132; ./$name/linux-boot-analyzer" /dev/null
           echo "the packaged binary started, navigated and quit cleanly"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: linux_boot_analyzer_tui-${{ matrix.target }}
+          name: linux-boot-analyzer-${{ matrix.target }}
           path: dist/*.tar.gz*
           if-no-files-found: error
 

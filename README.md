@@ -34,14 +34,14 @@ Download the archive for your architecture from the
 and unpack the binary somewhere on your `PATH`, or build it yourself:
 
 ```bash
-cargo build --release        # ./target/release/linux_boot_analyzer_tui
+cargo build --release        # ./target/release/linux-boot-analyzer
 cargo install --path .       # ... or into ~/.cargo/bin
 ```
 
 ## Run
 
 ```bash
-linux_boot_analyzer_tui
+linux-boot-analyzer
 ```
 
 ## Keys
