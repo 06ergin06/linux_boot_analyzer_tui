@@ -20,6 +20,16 @@ use crate::{profiles, service_db};
 // looking right on exactly one background. Colour is always a second signal,
 // never the only one - every state is also spelled out in words.
 
+// Below this the interface cannot be read any more: the filter line alone needs
+// about 72 columns, and the tab bar, the table and its detail pane need the
+// rows. A smaller terminal gets the notice instead, as btop does.
+pub const MIN_WIDTH: u16 = 80;
+pub const MIN_HEIGHT: u16 = 24;
+
+pub fn fits(width: u16, height: u16) -> bool {
+    width >= MIN_WIDTH && height >= MIN_HEIGHT
+}
+
 const ACCENT: Color = Color::Cyan;
 const MUTED: Color = Color::DarkGray;
 const OK: Color = Color::Green;
@@ -48,6 +58,11 @@ fn panel_titled(title: String) -> Block<'static> {
 }
 
 pub fn render(frame: &mut Frame, app: &App) {
+    if !fits(frame.area().width, frame.area().height) {
+        render_too_small(frame);
+        return;
+    }
+
     let [header, body, footer] = Layout::vertical([
         Constraint::Length(3),
         Constraint::Min(0),
@@ -60,6 +75,39 @@ pub fn render(frame: &mut Frame, app: &App) {
     render_footer(frame, app, footer);
     render_overlay(frame, app);
     render_info(frame, app);
+}
+
+fn render_too_small(frame: &mut Frame) {
+    let full = frame.area();
+
+    let lines = vec![
+        Line::from(i18n::fill(
+            i18n::t("tui_too_small_size"),
+            &[
+                &full.width.to_string(),
+                &full.height.to_string(),
+                &MIN_WIDTH.to_string(),
+                &MIN_HEIGHT.to_string(),
+            ],
+        ))
+        .style(muted()),
+        Line::from(i18n::t("tui_too_small_hint")).style(muted()),
+    ];
+
+    let width = lines
+        .iter()
+        .map(|line| line_text(line).chars().count())
+        .max()
+        .unwrap_or(1) as u16
+        + 2;
+    let width = width.min(full.width);
+    let area = centered_rect(width, block_height(&lines, width), full);
+    frame.render_widget(Clear, area);
+
+    let notice = Paragraph::new(lines)
+        .block(panel("tui_too_small"))
+        .wrap(Wrap { trim: false });
+    frame.render_widget(notice, area);
 }
 
 fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {

@@ -265,8 +265,33 @@ fn ctrl_c_quits_from_any_screen() {
     assert!(app.should_quit);
 
     let mut app = app_with_services();
+    app.too_small = true;
+    app.handle_key(ctrl_c);
+    assert!(app.should_quit);
+
+    let mut app = app_with_services();
     app.handle_key(press(KeyCode::Char('c')));
     assert!(!app.should_quit);
+}
+
+#[test]
+fn a_too_small_terminal_answers_only_the_quit_keys() {
+    let mut app = app_with_services();
+    app.too_small = true;
+
+    let selected = app.selected;
+    for key in typed("ajk/f5") {
+        app.handle_key(key);
+    }
+
+    assert_eq!(app.overlay, Overlay::None);
+    assert!(!app.searching);
+    assert_eq!(app.selected, selected);
+    assert_eq!(app.tab, Tab::Services);
+    assert!(!app.should_quit);
+
+    app.handle_key(press(KeyCode::Esc));
+    assert!(app.should_quit);
 }
 
 #[test]

@@ -37,6 +37,9 @@ interface is in English and Turkish.
 ## Requirements
 
 - Linux with systemd.
+- A terminal of at least 80x24. Below that the app draws a "Terminal too small"
+  notice — with the size it needs — instead of the interface, and answers only
+  the quit keys until the window grows.
 - `sudo` for actions that need root. The password is asked inside the app.
 - Rust 1.88 or newer to build it. The prebuilt binaries are statically linked,
   so any x86_64 or aarch64 Linux with systemd will run them.

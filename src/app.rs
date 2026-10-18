@@ -141,6 +141,7 @@ pub struct App {
     pub message: Option<String>,
     pub level: Level,
     pub running: bool,
+    pub too_small: bool,
     pub info: Option<InfoPane>,
     clipboard: Option<String>,
     password: Option<String>,
@@ -183,6 +184,7 @@ impl App {
             message: None,
             level: Level::Info,
             running: false,
+            too_small: false,
             info: None,
             clipboard: None,
             password: None,
@@ -635,8 +637,14 @@ impl App {
 
         // Raw mode hands Ctrl-C over as a key instead of a signal, so it has to
         // be answered here; it quits from any screen, overlay included.
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+        if ctrl_c(key) {
             self.should_quit = true;
+            return;
+        }
+
+        // While the terminal is too small only the notice is drawn, so a key
+        // must not reach a dialog the user cannot see and cannot confirm.
+        if self.too_small && !matches!(key.code, KeyCode::Char('q') | KeyCode::Esc) {
             return;
         }
 
@@ -1443,6 +1451,10 @@ impl Default for App {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn ctrl_c(key: KeyEvent) -> bool {
+    key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c')
 }
 
 fn labelled(label: &str, value: &str) -> String {

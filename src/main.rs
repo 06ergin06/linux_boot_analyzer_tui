@@ -96,6 +96,12 @@ fn main() -> io::Result<()> {
             app.poll_command();
             terminal.draw(|frame| ui::render(frame, &app))?;
 
+            // The keyboard has to know what the frame just showed: below the
+            // minimum size only the notice is drawn, and then only the quit
+            // keys are answered.
+            let size = terminal.size()?;
+            app.too_small = !ui::fits(size.width, size.height);
+
             // Anything the app queued for the clipboard goes out as an OSC 52
             // escape sequence, after the frame has been painted.
             if let Some(text) = app.take_clipboard() {

@@ -367,6 +367,17 @@ const TRANSLATIONS: &[(&str, &str, &str)] = &[
     ),
     ("tui_loading", "Loading...", "Yükleniyor..."),
     ("tui_no_data", "No data available.", "Veri yok."),
+    ("tui_too_small", "Terminal too small", "Uçbirim çok küçük"),
+    (
+        "tui_too_small_size",
+        "Size: {}x{}   ({}x{} needed)",
+        "Boyut: {}x{}   (en az {}x{})",
+    ),
+    (
+        "tui_too_small_hint",
+        "Resize the terminal, or press q to quit",
+        "Uçbirimi büyüt ya da çıkmak için q'ya bas",
+    ),
     ("tui_running", "Running...", "Çalışıyor..."),
     (
         "tui_busy",

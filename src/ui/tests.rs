@@ -270,6 +270,38 @@ fn tiny_terminals_do_not_panic() {
 }
 
 #[test]
+fn fits_asks_for_both_dimensions() {
+    assert!(fits(80, 24));
+    assert!(fits(200, 60));
+    assert!(!fits(79, 24));
+    assert!(!fits(80, 23));
+}
+
+#[test]
+fn a_terminal_below_the_minimum_shows_only_the_notice() {
+    let app = loaded_app(Tab::Services);
+
+    let text = render_to_string(&app, 79, 23);
+
+    assert!(text.contains("Terminal too small"), "{text}");
+    assert!(text.contains("Size: 79x23"), "{text}");
+    assert!(text.contains("80x24 needed"), "{text}");
+    assert!(text.contains("press q to quit"), "{text}");
+    assert!(!text.contains("NetworkManager.service"), "{text}");
+    assert!(!text.contains("Analysis"), "{text}");
+}
+
+#[test]
+fn the_smallest_supported_terminal_draws_the_interface() {
+    let app = loaded_app(Tab::Services);
+
+    let text = render_to_string(&app, MIN_WIDTH, MIN_HEIGHT);
+
+    assert!(!text.contains("Terminal too small"), "{text}");
+    assert!(text.contains("NetworkManager.service"), "{text}");
+}
+
+#[test]
 fn the_confirmation_dialog_counts_wrapped_rows() {
     assert_eq!(wrapped_rows("short question?", 40), 1);
     assert_eq!(wrapped_rows("a question that does not fit", 10), 3);
@@ -346,21 +378,32 @@ fn confirmation_dialog_keeps_the_key_hint_visible() {
 fn a_long_service_description_is_not_clipped() {
     let app = loaded_app(Tab::Services);
 
-    let text = render_to_string(&app, 60, 26);
+    let text = render_to_string(&app, MIN_WIDTH, 26);
 
+    assert!(
+        text.contains("Manages Ethernet, Wi-Fi, and mobile network connections."),
+        "{text}"
+    );
     assert!(text.contains("Do not disable."), "{text}");
-    assert!(text.contains("and network connectivity."), "{text}");
+    assert!(text.contains("connectivity."), "{text}");
 }
 
 #[test]
 fn a_wrapping_autostart_path_is_not_clipped() {
-    let app = loaded_app(Tab::Autostart);
+    let mut app = loaded_app(Tab::Autostart);
+    let long_path = format!("/home/user/.config/autostart/{}.desktop", "a".repeat(60));
+    if let Some(data) = app.data.as_mut()
+        && let Ok(entries) = &mut data.autostart
+    {
+        entries[0].path = std::path::PathBuf::from(&long_path);
+    }
 
-    let text = render_to_string(&app, 40, 24);
+    let text = render_to_string(&app, MIN_WIDTH, MIN_HEIGHT);
 
     assert!(text.contains("Command: example --start"), "{text}");
     assert!(text.contains("File:"), "{text}");
-    assert!(text.contains("esktop"), "{text}");
+    assert!(text.contains("/home/user/.config/autostart/"), "{text}");
+    assert!(text.contains(".desktop"), "{text}");
 }
 
 fn with_custom_profile(tab: Tab) -> App {
