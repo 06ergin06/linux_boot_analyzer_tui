@@ -43,48 +43,40 @@ interface is in English and Turkish.
 
 ## Install
 
-### Any Linux
-
-The install script picks the archive for your architecture, verifies its
-checksum and puts the binary in `/usr/local/bin` — or in `~/.local/bin` when it
-cannot write there:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/06ergin06/linux_boot_analyzer_tui/master/install.sh | sh
 ```
 
-### Arch Linux
+The script verifies the download and puts the binary in `/usr/local/bin`, or in
+`~/.local/bin` when it cannot.
 
-The released binary is in the AUR as
-[`linux-boot-analyzer-bin`](https://aur.archlinux.org/packages/linux-boot-analyzer-bin):
+### Arch Linux (AUR)
+
+Install it on Arch Linux or Arch-based distributions (Manjaro, EndeavourOS, etc.) from the AUR:
 
 ```bash
-yay -S linux-boot-analyzer-bin       # or: paru -S linux-boot-analyzer-bin
+yay -S linux-boot-analyzer-bin
 ```
-
-The recipes live in `contrib/aur/`: the `-bin` one the AUR carries, and a
-`-git` one that builds the current source.
+or
+```bash
+paru -S linux-boot-analyzer-bin
+```
 
 ### Prebuilt archive
 
 Download the archive for your architecture from the
-[releases page](https://github.com/06ergin06/linux_boot_analyzer_tui/releases)
-and put the binary on your `PATH`. The archive holds the binary, `README.md` and
-`LICENSE` — there is no source in it.
+[releases page](https://github.com/06ergin06/linux_boot_analyzer_tui/releases),
+unpack it and put the binary on your `PATH`.
 
 ### From source
 
-[Rust 1.88 or newer](#requirements) is needed:
+Rust 1.88 or newer is needed:
 
 ```bash
 git clone https://github.com/06ergin06/linux_boot_analyzer_tui
 cd linux_boot_analyzer_tui
 cargo build --release        # ./target/release/linux-boot-analyzer
-cargo install --path .       # ... or into ~/.cargo/bin
 ```
-
-`cargo install --git https://github.com/06ergin06/linux_boot_analyzer_tui` clones
-and builds in one step.
 
 ## Run
 
