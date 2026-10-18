@@ -43,6 +43,8 @@ interface is in English and Turkish.
 
 ## Install
 
+### Any Linux
+
 The install script picks the archive for your architecture, verifies its
 checksum and puts the binary in `/usr/local/bin` — or in `~/.local/bin` when it
 cannot write there:
@@ -51,10 +53,21 @@ cannot write there:
 curl -fsSL https://raw.githubusercontent.com/06ergin06/linux_boot_analyzer_tui/master/install.sh | sh
 ```
 
-On Arch, `linux-boot-analyzer-bin` (the released binary) and
-`linux-boot-analyzer-git` (built from source) are prepared under `contrib/aur/`.
+### Arch Linux
 
-Or download the archive for your architecture from the
+The released binary is in the AUR as
+[`linux-boot-analyzer-bin`](https://aur.archlinux.org/packages/linux-boot-analyzer-bin):
+
+```bash
+yay -S linux-boot-analyzer-bin       # or: paru -S linux-boot-analyzer-bin
+```
+
+The recipes live in `contrib/aur/`: the `-bin` one the AUR carries, and a
+`-git` one that builds the current source.
+
+### Releases and source
+
+Download the archive for your architecture from the
 [releases page](https://github.com/06ergin06/linux_boot_analyzer_tui/releases)
 and unpack the binary somewhere on your `PATH`, or build it yourself:
 
