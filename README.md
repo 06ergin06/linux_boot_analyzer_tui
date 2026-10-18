@@ -65,16 +65,26 @@ yay -S linux-boot-analyzer-bin       # or: paru -S linux-boot-analyzer-bin
 The recipes live in `contrib/aur/`: the `-bin` one the AUR carries, and a
 `-git` one that builds the current source.
 
-### Releases and source
+### Prebuilt archive
 
 Download the archive for your architecture from the
 [releases page](https://github.com/06ergin06/linux_boot_analyzer_tui/releases)
-and unpack the binary somewhere on your `PATH`, or build it yourself:
+and put the binary on your `PATH`. The archive holds the binary, `README.md` and
+`LICENSE` — there is no source in it.
+
+### From source
+
+[Rust 1.88 or newer](#requirements) is needed:
 
 ```bash
+git clone https://github.com/06ergin06/linux_boot_analyzer_tui
+cd linux_boot_analyzer_tui
 cargo build --release        # ./target/release/linux-boot-analyzer
 cargo install --path .       # ... or into ~/.cargo/bin
 ```
+
+`cargo install --git https://github.com/06ergin06/linux_boot_analyzer_tui` clones
+and builds in one step.
 
 ## Run
 
