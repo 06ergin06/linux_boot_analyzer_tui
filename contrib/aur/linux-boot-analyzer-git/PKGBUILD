@@ -1,6 +1,6 @@
 # Maintainer: İbrahim Hakkı Ergin <ibrahimh.ergin@gmail.com>
 pkgname=linux-boot-analyzer-git
-pkgver=r1.1.0
+pkgver=r1.2.0
 pkgrel=1
 pkgdesc="A terminal UI that analyses boot time and manages systemd services"
 arch=('x86_64' 'aarch64')
