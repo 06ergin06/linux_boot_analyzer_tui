@@ -1,9 +1,11 @@
 use super::*;
 use crate::custom_profiles::CustomProfile;
+use crate::service_db::{ServiceEntry, Tip};
 use crate::system::{BlameEntry, BootSummary, Service, SystemData, SystemInfo};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::text::Line;
 
 fn sample_data() -> SystemData {
     SystemData {
@@ -55,6 +57,18 @@ fn render_to_string(app: &App, width: u16, height: u16) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("terminal");
     terminal.draw(|frame| render(frame, app)).expect("draw");
+    terminal.backend().to_string()
+}
+
+fn render_service_detail_to_string(lines: &[Line], width: u16, height: u16) -> String {
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).expect("terminal");
+    terminal
+        .draw(|frame| {
+            let area = frame.area();
+            render_service_detail(frame, lines, area);
+        })
+        .expect("draw");
     terminal.backend().to_string()
 }
 
@@ -376,16 +390,41 @@ fn confirmation_dialog_keeps_the_key_hint_visible() {
 
 #[test]
 fn a_long_service_description_is_not_clipped() {
-    let app = loaded_app(Tab::Services);
+    const DESCRIPTION: &str = "This mock service exists only to exercise the detail pane. \
+        Its deliberately long description keeps wrapping across several rows until it reaches \
+        the final marker END-OF-DESCRIPTION.";
+    const SUGGESTION: &str = "This mock suggestion is equally long so the second wrapped \
+        paragraph also has to fit inside the pane without clipping and ends with \
+        END-OF-SUGGESTION.";
 
-    let text = render_to_string(&app, MIN_WIDTH, 26);
+    let service = Service {
+        name: "mock-long-description.service".to_string(),
+        active: "active".to_string(),
+        sub: "running".to_string(),
+        description: String::new(),
+        enabled: "enabled".to_string(),
+    };
+    let entry = ServiceEntry {
+        desc: DESCRIPTION.to_string(),
+        desc_en: DESCRIPTION.to_string(),
+        suggestion: SUGGESTION.to_string(),
+        oneri_en: SUGGESTION.to_string(),
+        tip: Tip::Suggestion,
+    };
 
-    assert!(
-        text.contains("Manages Ethernet, Wi-Fi, and mobile network connections."),
-        "{text}"
+    let lines = service_detail_lines_with(Some(&service), Some(&entry));
+    let height = detail_height(&lines, MIN_WIDTH, 26);
+
+    assert_eq!(
+        height,
+        block_height(&lines, MIN_WIDTH),
+        "the detail pane must not clamp the mock description"
     );
-    assert!(text.contains("Do not disable."), "{text}");
-    assert!(text.contains("connectivity."), "{text}");
+
+    let text = render_service_detail_to_string(&lines, MIN_WIDTH, height);
+
+    assert!(text.contains("END-OF-DESCRIPTION."), "{text}");
+    assert!(text.contains("END-OF-SUGGESTION."), "{text}");
 }
 
 #[test]

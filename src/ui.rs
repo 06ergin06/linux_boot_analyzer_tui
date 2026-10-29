@@ -327,24 +327,30 @@ fn render_service_detail(frame: &mut Frame, lines: &[Line], area: Rect) {
 }
 
 fn service_detail_lines(service: Option<&Service>) -> Vec<Line<'_>> {
-    match service {
-        Some(service) => match service_db::lookup(&service.name) {
-            Some(entry) => vec![
-                Line::from(vec![
-                    Span::styled(service.name.as_str(), Style::new().bold()),
-                    Span::raw(" "),
-                    Span::styled(format!("({})", entry.tip.label()), tip_style(entry.tip)),
-                ]),
-                Line::from(""),
-                Line::from(entry.description()),
-                Line::from(entry.suggestion_text()).style(muted()),
-            ],
-            None => vec![
-                Line::from(service.name.as_str()).bold(),
-                Line::from(i18n::t("tui_no_kb_entry")).style(muted()),
-            ],
-        },
-        None => vec![Line::from(i18n::t("tui_no_service_selected")).style(muted())],
+    let entry = service.and_then(|service| service_db::lookup(&service.name));
+    service_detail_lines_with(service, entry)
+}
+
+fn service_detail_lines_with<'a>(
+    service: Option<&'a Service>,
+    entry: Option<&'a service_db::ServiceEntry>,
+) -> Vec<Line<'a>> {
+    match (service, entry) {
+        (Some(service), Some(entry)) => vec![
+            Line::from(vec![
+                Span::styled(service.name.as_str(), Style::new().bold()),
+                Span::raw(" "),
+                Span::styled(format!("({})", entry.tip.label()), tip_style(entry.tip)),
+            ]),
+            Line::from(""),
+            Line::from(entry.description()),
+            Line::from(entry.suggestion_text()).style(muted()),
+        ],
+        (Some(service), None) => vec![
+            Line::from(service.name.as_str()).bold(),
+            Line::from(i18n::t("tui_no_kb_entry")).style(muted()),
+        ],
+        _ => vec![Line::from(i18n::t("tui_no_service_selected")).style(muted())],
     }
 }
 
