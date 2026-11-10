@@ -6,6 +6,13 @@
     "oneri_en": "Keep enabled; login screens and user management depend on it.",
     "tip": "kritik"
   },
+  "alsa-restore.service": {
+    "desc": "Ses kartı durumunu kapatırken kaydeder ve açılışta geri yükler.",
+    "desc_en": "Saves sound-card state at shutdown and restores it during boot.",
+    "suggestion": "Ses düzeyi ve ayarlarının korunması gerekmiyorsa kapatılabilir.",
+    "oneri_en": "Disable it when audio levels and mixer settings do not need to persist across reboots.",
+    "tip": "suggestion"
+  },
   "ananicy-cpp.service": {
     "desc": "IO ve CPU önceliklerini otomatik ayarlayarak sistem yanıt verebilirliğini artırır.",
     "desc_en": "Tunes process scheduling priorities to improve perceived desktop responsiveness.",
@@ -19,6 +26,13 @@
     "suggestion": "Kapatmayın. Sistem güvenliği ve zararlı yazılımların sınırlandırılması için gereklidir.",
     "oneri_en": "Keep enabled where AppArmor profiles are part of the security model.",
     "tip": "kritik"
+  },
+  "apport.service": {
+    "desc": "Ubuntu sistemlerinde çökme raporlarını toplar ve hata bildirimlerine hazırlar.",
+    "desc_en": "Collects crash reports and prepares them for bug reporting on Ubuntu systems.",
+    "suggestion": "Çökme raporlarını paylaşmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it if crash reports are not collected or submitted.",
+    "tip": "suggestion"
   },
   "apt-daily-upgrade.service": {
     "desc": "Bekleyen paket güncellemelerini otomatik yükler.",
@@ -104,11 +118,32 @@
     "oneri_en": "Leave enabled to keep Wi-Fi channel and power settings compliant.",
     "tip": "suggestion"
   },
+  "chrony.service": {
+    "desc": "chrony NTP istemcisini çalıştırarak sistem saatini ağ üzerinden senkronize eder.",
+    "desc_en": "Runs the chrony NTP client to keep the system clock synchronized over the network.",
+    "suggestion": "Saat senkronizasyonu için açık bırakın; başka bir NTP istemcisi kullanıyorsanız kapatılabilir.",
+    "oneri_en": "Keep it enabled unless another NTP client manages time synchronization.",
+    "tip": "gerekli"
+  },
   "colord.service": {
     "desc": "Renk yönetimi profillerini yönetir. Monitör ve yazıcı renk doğruluğunu sağlar.",
     "desc_en": "Maintains color profiles for displays, scanners, and printers.",
     "suggestion": "Profesyonel grafik tasarım veya renk kalibrasyonu yapmıyorsanız açılışı hızlandırmak için kapatılması önerilir.",
     "oneri_en": "It can be skipped on systems that do not require color management.",
+    "tip": "suggestion"
+  },
+  "com.system76.Scheduler.service": {
+    "desc": "Ön plandaki masaüstü uygulamaları için CPU zamanlamasını ve süreç önceliklerini ayarlar.",
+    "desc_en": "Adjusts CPU scheduling and process priorities for foreground desktop workloads.",
+    "suggestion": "Pop!_OS masaüstlerinde faydalıdır; sunucularda gerekmez.",
+    "oneri_en": "Useful on Pop!_OS desktops; servers and non-interactive systems do not need it.",
+    "tip": "suggestion"
+  },
+  "com.system76.SystemUpdater.service": {
+    "desc": "Pop!_OS sistem güncellemelerini yöneten arka plan servisini çalıştırır.",
+    "desc_en": "Runs the Pop!_OS background service that manages system updates.",
+    "suggestion": "Güncellemeleri başka bir araçla yönetiyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when updates are managed by another tool.",
     "tip": "suggestion"
   },
   "console-setup.service": {
@@ -124,6 +159,13 @@
     "suggestion": "Docker/konteyner kullanmıyorsanız kapatılabilir.",
     "oneri_en": "Disable it when no container workloads are used.",
     "tip": "suggestion"
+  },
+  "cosmic-greeter-daemon.service": {
+    "desc": "COSMIC masaüstü için grafik oturum açma ekranını çalıştırır.",
+    "desc_en": "Runs the graphical login greeter daemon for the COSMIC desktop.",
+    "suggestion": "COSMIC oturum açma ekranını kullanıyorsanız açık bırakın.",
+    "oneri_en": "Keep it enabled on systems that use the COSMIC greeter.",
+    "tip": "kritik"
   },
   "cups-browsed.service": {
     "desc": "Ağdaki paylaşımlı yazıcıları otomatik olarak keşfeder ve sisteme ekler.",
@@ -159,6 +201,13 @@
     "suggestion": "Pacman ve paket imzası doğrulaması için genelde gereklidir.",
     "oneri_en": "Keep it available when package or key signature verification is used.",
     "tip": "gerekli"
+  },
+  "disable-turbo.service": {
+    "desc": "CPU turbo boost’u kapatarak güç tüketimini ve sıcaklığı sınırlar.",
+    "desc_en": "Disables CPU turbo boost to cap power consumption and heat output.",
+    "suggestion": "Turbo boost’un kapalı kalmasını istemiyorsanız kapatın.",
+    "oneri_en": "Disable it when turbo boost should remain available.",
+    "tip": "suggestion"
   },
   "dm-event.service": {
     "desc": "Device Mapper olaylarını izler ve LVM işlemlerini tetikler.",
@@ -216,6 +265,13 @@
     "oneri_en": "Desktop systems normally do not need a local MTA.",
     "tip": "suggestion"
   },
+  "finalrd.service": {
+    "desc": "Kapanış sırasında kök dosya sistemi ayrıldıktan sonra çalışacak geçici bir ramdisk hazırlar.",
+    "desc_en": "Builds a temporary final ramdisk used by shutdown hooks after the root filesystem is unmounted.",
+    "suggestion": "Kapanış sonrası bakım betikleri kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when no shutdown-time cleanup hooks are required.",
+    "tip": "suggestion"
+  },
   "fstrim.service": {
     "desc": "SSD disklerde kullanılmayan veri bloklarını temizler (TRIM). SSD ömrünü uzatır.",
     "desc_en": "Discards unused blocks on mounted filesystems to maintain SSD performance.",
@@ -258,12 +314,54 @@
     "oneri_en": "Disable it only if GnuPG signing or encryption is not used.",
     "tip": "gerekli"
   },
+  "gpu-manager.service": {
+    "desc": "Açılışta grafik donanımını algılar ve sürücü yapılandırmasını uygular.",
+    "desc_en": "Detects graphics hardware and applies driver or alternative configuration at boot.",
+    "suggestion": "Grafik sürücülerini elle yönetiyorsanız veya hibrit grafik kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it if graphics drivers are managed manually or hybrid graphics are not used.",
+    "tip": "suggestion"
+  },
   "grub-common.service": {
     "desc": "GRUB başlangıç yöneticisi ayarlarını başlangıçta kontrol eder.",
     "desc_en": "Synchronizes bootloader metadata after kernel or GRUB updates.",
     "suggestion": "Açık bırakılması önerilir. Çekirdek güncellemelerinin GRUB'a doğru işlenmesini sağlar.",
     "oneri_en": "Keep it enabled so kernel updates remain bootable.",
     "tip": "gerekli"
+  },
+  "hpm-fan.service": {
+    "desc": "Desteklenen HP OMEN dizüstü bilgisayarlarda fan eğrilerini ve soğutma davranışını yönetir.",
+    "desc_en": "Controls fan curves and cooling behavior on supported HP OMEN laptops.",
+    "suggestion": "HP OMEN donanımında açık bırakın; diğer sistemlerde gerekmez.",
+    "oneri_en": "Keep it enabled on supported HP OMEN laptops; it is unnecessary on other hardware.",
+    "tip": "suggestion"
+  },
+  "hpm-mux.service": {
+    "desc": "Desteklenen HP OMEN dizüstülerde ekran MUX’unu ve grafik geçiş arayüzünü denetler.",
+    "desc_en": "Controls the display MUX and graphics-switching interface on supported HP OMEN laptops.",
+    "suggestion": "MUX veya grafik geçişi kullanmıyorsanız kapatabilirsiniz.",
+    "oneri_en": "Disable it when display MUX or GPU switching controls are not needed.",
+    "tip": "suggestion"
+  },
+  "hpm-platform.service": {
+    "desc": "HP OMEN platform kontrollerini (performans modu gibi) arka plan servisi olarak sunar.",
+    "desc_en": "Exposes HP OMEN platform controls such as performance modes through a background service.",
+    "suggestion": "HP OMEN donanımında açık bırakın; diğer sistemlerde gereksizdir.",
+    "oneri_en": "Keep it enabled on HP OMEN hardware; it is redundant elsewhere.",
+    "tip": "suggestion"
+  },
+  "hpm-power.service": {
+    "desc": "Desteklenen HP OMEN dizüstülerde güç ve pil davranışını yönetir.",
+    "desc_en": "Applies power and battery settings on supported HP OMEN laptops.",
+    "suggestion": "HP OMEN güç yönetimini kullanmıyorsanız kapatabilirsiniz.",
+    "oneri_en": "Disable it when HP OMEN power controls are not used.",
+    "tip": "suggestion"
+  },
+  "hpm-rgb.service": {
+    "desc": "Desteklenen HP OMEN dizüstülerde klavye RGB aydınlatmasını denetler.",
+    "desc_en": "Manages keyboard RGB lighting on supported HP OMEN laptops.",
+    "suggestion": "RGB aydınlatma kullanmıyorsanız kapatabilirsiniz.",
+    "oneri_en": "Disable it when RGB lighting control is not needed.",
+    "tip": "suggestion"
   },
   "ifupdown-pre.service": {
     "desc": "Ağ arayüzleri başlatılmadan önce gerekli hazırlıkları yapar.",
@@ -405,11 +503,25 @@
     "oneri_en": "Do not disable entries that provide required hardware drivers.",
     "tip": "kritik"
   },
+  "motd-news.service": {
+    "desc": "Ubuntu MOTD haberlerini indirip günlük giriş mesajına ekler.",
+    "desc_en": "Downloads Ubuntu MOTD news and updates the message shown at login.",
+    "suggestion": "Giriş ekranındaki haberleri istemiyorsanız kapatılabilir.",
+    "oneri_en": "Disable it if login-time news messages are not wanted.",
+    "tip": "suggestion"
+  },
   "mysql.service": {
     "desc": "MySQL/MariaDB veritabanı sunucusu.",
     "desc_en": "Runs a MySQL or MariaDB database server.",
     "suggestion": "Veritabanı sunucusu kullanmıyorsanız kapatılabilir.",
     "oneri_en": "Disable it when the host does not provide a MySQL-compatible database.",
+    "tip": "suggestion"
+  },
+  "networkd-dispatcher.service": {
+    "desc": "systemd-networkd bağlantı ve adres olaylarına yanıt olarak dispatcher betiklerini çalıştırır.",
+    "desc_en": "Runs dispatcher scripts in response to systemd-networkd link and address events.",
+    "suggestion": "NetworkManager kullanıyorsanız veya özel dispatcher betikleriniz yoksa kapatılabilir.",
+    "oneri_en": "Disable it when NetworkManager is used or no custom network dispatcher scripts are configured.",
     "tip": "suggestion"
   },
   "networking.service": {
@@ -433,6 +545,13 @@
     "oneri_en": "Leave enabled on systems that need managed network connectivity.",
     "tip": "kritik"
   },
+  "nvidia-persistenced.service": {
+    "desc": "NVIDIA GPU sürücüsünün kalıcılık modunu koruyarak başlatma yükünü azaltır.",
+    "desc_en": "Keeps the NVIDIA GPU driver initialized in persistence mode to reduce startup overhead.",
+    "suggestion": "NVIDIA GPU kullanmıyorsanız veya kalıcılık moduna ihtiyacınız yoksa kapatabilirsiniz.",
+    "oneri_en": "Disable it on systems without NVIDIA GPUs or when persistence mode is not needed.",
+    "tip": "suggestion"
+  },
   "nvidia-resume.service": {
     "desc": "NVIDIA ekran kartı sürücüsünü uyku/uyanma durumunda yönetir.",
     "desc_en": "Restores NVIDIA GPU state after the system resumes from sleep.",
@@ -446,6 +565,13 @@
     "suggestion": "NVIDIA kart kullanıyorsanız kapatmayın.",
     "oneri_en": "Keep it enabled on machines with NVIDIA GPUs that use suspend.",
     "tip": "gerekli"
+  },
+  "openvpn.service": {
+    "desc": "OpenVPN bağlantılarını başlatan geleneksel init servisini çalıştırır.",
+    "desc_en": "Runs the traditional OpenVPN init service that starts configured VPN connections.",
+    "suggestion": "OpenVPN kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when OpenVPN connections are not used.",
+    "tip": "suggestion"
   },
   "packagekit.service": {
     "desc": "Yazılım yöneticisi arka plan servisi. Paket güncelleme ve yükleme işlemlerini yönetir.",
@@ -496,6 +622,13 @@
     "oneri_en": "Keep it enabled; graphical privilege prompts depend on it.",
     "tip": "kritik"
   },
+  "pop-default-settings-zram.service": {
+    "desc": "Pop!_OS varsayılanlarıyla sıkıştırılmış zram takas alanını yapılandırır ve etkinleştirir.",
+    "desc_en": "Configures and enables compressed zram swap using Pop!_OS defaults.",
+    "suggestion": "Zram kullanmıyorsanız veya hazırda bekletme için disk takası gerekiyorsa kapatılabilir.",
+    "oneri_en": "Disable it when zram is not used or disk-backed swap is required for hibernation.",
+    "tip": "suggestion"
+  },
   "postgresql.service": {
     "desc": "PostgreSQL veritabanı sunucusu.",
     "desc_en": "Runs a PostgreSQL database server.",
@@ -524,6 +657,13 @@
     "oneri_en": "Do not disable; it is a recovery path.",
     "tip": "kritik"
   },
+  "rsyslog.service": {
+    "desc": "Sistem günlüklerini klasik syslog dosyalarına yazar ve uzak toplayıcılara iletebilir.",
+    "desc_en": "Writes system logs to classic syslog files and can forward them to remote collectors.",
+    "suggestion": "Yalnızca journald kullanıyorsanız ve uzak günlük toplamıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it if journald is the only logging system and no remote log collector is used.",
+    "tip": "suggestion"
+  },
   "rtkit-daemon.service": {
     "desc": "Gerçek zamanlı ses ve medya işlemleri için sistem önceliklerini yönetir.",
     "desc_en": "Grants real-time scheduling priorities to audio and media processes.",
@@ -537,6 +677,20 @@
     "suggestion": "Kapatmayın. Grafik arayüz için gereklidir.",
     "oneri_en": "Keep it enabled on systems that use SDDM for graphical login.",
     "tip": "kritik"
+  },
+  "secureboot-db.service": {
+    "desc": "UEFI Secure Boot sertifika iptal veritabanını (DBX) günceller.",
+    "desc_en": "Updates the UEFI Secure Boot certificate revocation database (DBX).",
+    "suggestion": "Secure Boot kullanıyorsanız açık bırakın; güvenlik güncellemeleri için önemlidir.",
+    "oneri_en": "Keep it enabled when Secure Boot is used; it applies important revocation updates.",
+    "tip": "gerekli"
+  },
+  "setvtrgb.service": {
+    "desc": "Metin konsolunun renk paletini yapılandırır.",
+    "desc_en": "Applies the configured color palette to the Linux text console.",
+    "suggestion": "Konsol renklerini özelleştirmiyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when custom console colors are not needed.",
+    "tip": "suggestion"
   },
   "shadow.service": {
     "desc": "Gölge parola ve kullanıcı hesabı bilgilerini günceller.",
@@ -902,6 +1056,20 @@
     "oneri_en": "Keep it enabled for update and cache invalidation hooks.",
     "tip": "gerekli"
   },
+  "systemd-update-utmp-runlevel.service": {
+    "desc": "Çalışma seviyesi değişikliklerini utmp kayıtlarına işler.",
+    "desc_en": "Records runlevel changes in the utmp login accounting database.",
+    "suggestion": "Oturum ve çalışma seviyesi kayıtları için açık bırakın.",
+    "oneri_en": "Keep it enabled to maintain runlevel and session accounting records.",
+    "tip": "gerekli"
+  },
+  "systemd-update-utmp.service": {
+    "desc": "Açılış ve kapanış olaylarını utmp/wtmp kayıtlarına yazar.",
+    "desc_en": "Records boot and shutdown events in the utmp/wtmp login accounting files.",
+    "suggestion": "Oturum kayıtları için açık bırakın.",
+    "oneri_en": "Keep it enabled to preserve boot and login accounting records.",
+    "tip": "gerekli"
+  },
   "systemd-user-sessions.service": {
     "desc": "Kullanıcı oturumlarının başlatılmasına izin verir ve yönetir.",
     "desc_en": "Allows user login sessions once the system reaches the appropriate target.",
@@ -928,6 +1096,13 @@
     "desc_en": "Creates compressed zram swap devices.",
     "suggestion": "ZRAM kullanmıyorsanız kapatılabilir.",
     "oneri_en": "Enable it when zram swap is part of the memory strategy.",
+    "tip": "suggestion"
+  },
+  "thermald.service": {
+    "desc": "Intel işlemcilerde platforma özgü soğutma politikaları uygulayarak termal sınırları korur.",
+    "desc_en": "Applies platform-specific thermal policies to keep Intel CPUs within safe temperature limits.",
+    "suggestion": "Intel dizüstülerde açık bırakın; termal yönetim gerekmiyorsa kapatılabilir.",
+    "oneri_en": "Keep it on Intel laptops; systems with other thermal management can disable it.",
     "tip": "suggestion"
   },
   "tlp.service": {
@@ -978,6 +1153,34 @@
     "suggestion": "Kapatmayın. Kullanıcı servisleri için gereklidir.",
     "oneri_en": "Keep it enabled; user services are launched through it.",
     "tip": "kritik"
+  },
+  "vboxautostart-service.service": {
+    "desc": "VirtualBox sanal makinelerini sistem açılışında otomatik başlatır.",
+    "desc_en": "Starts VirtualBox virtual machines automatically during system boot.",
+    "suggestion": "Açılışta sanal makine başlatmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when virtual machines should not start automatically at boot.",
+    "tip": "suggestion"
+  },
+  "vboxballoonctrl-service.service": {
+    "desc": "VirtualBox bellek balon denetimini çalıştırarak konuk bellek kullanımını ayarlar.",
+    "desc_en": "Runs the VirtualBox memory balloon control service for guest memory management.",
+    "suggestion": "VirtualBox bellek balon denetimini kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when VirtualBox memory balloon control is not used.",
+    "tip": "suggestion"
+  },
+  "vboxdrv.service": {
+    "desc": "Sanal makineleri çalıştırmak için VirtualBox çekirdek modüllerini yükler.",
+    "desc_en": "Loads the VirtualBox kernel modules required to run virtual machines.",
+    "suggestion": "VirtualBox kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when VirtualBox is not used.",
+    "tip": "suggestion"
+  },
+  "vboxweb-service.service": {
+    "desc": "VirtualBox web hizmetini uzaktan yönetim için çalıştırır.",
+    "desc_en": "Runs the VirtualBox web service for remote management.",
+    "suggestion": "VirtualBox web arayüzünü kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when the VirtualBox web interface is not used.",
+    "tip": "suggestion"
   },
   "virtlockd.service": {
     "desc": "Sanal makine kilitlerini yönetir. Kaynak çatışmasını önler.",
