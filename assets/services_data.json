@@ -272,6 +272,13 @@
     "oneri_en": "Disable it when no shutdown-time cleanup hooks are required.",
     "tip": "suggestion"
   },
+  "fprintd.service": {
+    "desc": "Parmak izi okuyucu için kimlik doğrulama servisi. Parmak iziyle oturum açma ve sudo doğrulamasını destekler.",
+    "desc_en": "Provides fingerprint authentication for login, screen unlock, and sudo prompts.",
+    "suggestion": "Parmak izi okuyucu kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it on machines without a fingerprint reader or when fingerprint login is not used.",
+    "tip": "suggestion"
+  },
   "fstrim.service": {
     "desc": "SSD disklerde kullanılmayan veri bloklarını temizler (TRIM). SSD ömrünü uzatır.",
     "desc_en": "Discards unused blocks on mounted filesystems to maintain SSD performance.",
@@ -615,6 +622,13 @@
     "oneri_en": "Disable it if boot messages should stay on a plain text console.",
     "tip": "suggestion"
   },
+  "plymouth-switch-root.service": {
+    "desc": "Plymouth'un initrd'den gerçek kök dosya sistemine geçişini bildirir.",
+    "desc_en": "Tells Plymouth to switch from the initrd root to the real root filesystem.",
+    "suggestion": "Plymouth açılış animasyonu kullanıyorsanız açık bırakın; animasyon kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Keep it enabled when Plymouth provides the graphical boot splash; it can be disabled with Plymouth itself.",
+    "tip": "suggestion"
+  },
   "polkit.service": {
     "desc": "Yetkilendirme politikalarını yönetir. Uygulamaların yönetici yetkisiyle güvenli çalışmasını sağlar.",
     "desc_en": "Evaluates authorization policy for privileged desktop and system actions.",
@@ -648,6 +662,13 @@
     "desc_en": "Applies PowerTOP tuning recommendations at boot.",
     "suggestion": "Dizüstü bilgisayarda faydalı. Masaüstünde gereksiz.",
     "oneri_en": "Most helpful on battery-powered systems; desktops can skip it.",
+    "tip": "suggestion"
+  },
+  "proton.VPN.service": {
+    "desc": "Proton VPN arka plan servisi. VPN bağlantılarını ve bölünmüş tünellemeyi yönetir.",
+    "desc_en": "Runs the Proton VPN daemon and manages VPN connections and split tunneling.",
+    "suggestion": "Proton VPN kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when Proton VPN is not used.",
     "tip": "suggestion"
   },
   "rescue.service": {
@@ -1076,6 +1097,13 @@
     "suggestion": "Kapatmayın. Kullanıcıların grafik arayüz veya konsol üzerinden oturum açabilmesi için gereklidir.",
     "oneri_en": "Keep it enabled; interactive logins depend on it.",
     "tip": "critical"
+  },
+  "systemd-userdb-load-credentials.service": {
+    "desc": "systemd kimlik bilgilerinden kullanıcı ve grup kayıtlarını yükler.",
+    "desc_en": "Loads user and group records from systemd credentials.",
+    "suggestion": "Kapatmayın. Kullanıcı ve grup kayıtlarının erken önyüklemede kullanılabilmesi için gereklidir.",
+    "oneri_en": "Keep it enabled; early user and group lookups may depend on these records.",
+    "tip": "required"
   },
   "systemd-userdbd.service": {
     "desc": "Kullanıcı veritabanı servisi. Kullanıcıları JSON üzerinden dinamik olarak sorgular.",
