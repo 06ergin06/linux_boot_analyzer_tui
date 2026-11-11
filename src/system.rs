@@ -110,9 +110,12 @@ fn parse_blame(output: &str) -> Vec<BlameEntry> {
     output
         .lines()
         .filter_map(|line| {
-            let (time, name) = line.trim().split_once(char::is_whitespace)?;
+            // Durations can contain spaces (for example `1min 52.659s`), while
+            // unit names never do. Split off the unit name from the right.
+            let (time, name) = line.trim().rsplit_once(char::is_whitespace)?;
+            let time = time.trim();
             let name = name.trim();
-            if name.is_empty() {
+            if time.is_empty() || name.is_empty() {
                 return None;
             }
             Some(BlameEntry {
@@ -402,6 +405,16 @@ mod tests {
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].time, "2.345s");
         assert_eq!(entries[0].name, "NetworkManager-wait-online.service");
+    }
+
+    #[test]
+    fn parses_blame_lines_with_minute_durations() {
+        let entries = parse_blame("1min 52.659s plocate-updatedb.service\n16.218s tpm.device\n");
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].time, "1min 52.659s");
+        assert_eq!(entries[0].name, "plocate-updatedb.service");
+        assert_eq!(entries[1].time, "16.218s");
+        assert_eq!(entries[1].name, "tpm.device");
     }
 
     #[test]

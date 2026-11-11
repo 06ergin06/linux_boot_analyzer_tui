@@ -291,7 +291,7 @@ impl App {
                     let b_time = times
                         .get(b.name.as_str())
                         .map_or(0.0, |t| parse_duration_seconds(t));
-                    b_time.total_cmp(&a_time)
+                    b_time.total_cmp(&a_time).then_with(|| a.name.cmp(&b.name))
                 });
             }
         }

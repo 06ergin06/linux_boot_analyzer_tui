@@ -323,6 +323,30 @@ fn services_are_sorted_by_boot_time_by_default() {
 }
 
 #[test]
+fn boot_time_sort_handles_minute_durations() {
+    let mut app = app_with_services();
+    if let Some(data) = app.data.as_mut() {
+        data.blame = Ok(vec![
+            BlameEntry {
+                time: "1min 52.659s".to_string(),
+                name: "b.service".to_string(),
+            },
+            BlameEntry {
+                time: "16.218s".to_string(),
+                name: "a.service".to_string(),
+            },
+        ]);
+    }
+
+    let names: Vec<&str> = app
+        .visible_services()
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    assert_eq!(names, ["b.service", "a.service"]);
+}
+
+#[test]
 fn sorting_by_name_is_alphabetical() {
     let mut app = app_with_services();
     app.sort = SortBy::Name;
