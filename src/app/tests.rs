@@ -58,6 +58,16 @@ fn app_with_services() -> App {
     app
 }
 
+fn service(name: &str) -> Service {
+    Service {
+        name: name.to_string(),
+        active: "inactive".to_string(),
+        sub: "dead".to_string(),
+        description: String::new(),
+        enabled: "disabled".to_string(),
+    }
+}
+
 fn add_device(app: &mut App) {
     if let Some(data) = app.data.as_mut()
         && let Ok(services) = &mut data.services
@@ -322,6 +332,34 @@ fn sorting_by_name_is_alphabetical() {
         .map(|s| s.name.as_str())
         .collect();
     assert_eq!(names, ["a.service", "b.service"]);
+}
+
+#[test]
+fn sorting_by_name_ignores_letter_case() {
+    let mut app = app_with_services();
+    if let Some(data) = app.data.as_mut() {
+        data.services = Ok(vec![
+            service("NetworkManager.service"),
+            service("ModemManager.service"),
+            service("accounts-daemon.service"),
+            service("NetworkManager-wait-online.service"),
+        ]);
+    }
+    app.sort = SortBy::Name;
+    let names: Vec<&str> = app
+        .visible_services()
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "accounts-daemon.service",
+            "ModemManager.service",
+            "NetworkManager-wait-online.service",
+            "NetworkManager.service",
+        ]
+    );
 }
 
 #[test]

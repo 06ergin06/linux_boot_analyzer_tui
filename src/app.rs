@@ -276,7 +276,12 @@ impl App {
             .collect();
 
         match self.sort {
-            SortBy::Name => visible.sort_by(|a, b| a.name.cmp(&b.name)),
+            SortBy::Name => visible.sort_by(|a, b| {
+                a.name
+                    .to_lowercase()
+                    .cmp(&b.name.to_lowercase())
+                    .then_with(|| a.name.cmp(&b.name))
+            }),
             SortBy::BootTime => {
                 let times = self.blame_times();
                 visible.sort_by(|a, b| {

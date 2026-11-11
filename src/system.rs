@@ -238,7 +238,12 @@ fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<
         });
     }
 
-    services.sort_by(|a, b| a.name.cmp(&b.name));
+    services.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then_with(|| a.name.cmp(&b.name))
+    });
     services
 }
 
@@ -453,6 +458,28 @@ mod tests {
             .collect();
 
         assert_eq!(names, ["dev-sda.device", "sshd.socket"]);
+    }
+
+    #[test]
+    fn merge_sorts_service_names_ignoring_letter_case() {
+        let units = "● NetworkManager.service loaded active running Network Manager\n\
+                     ● ModemManager.service loaded active running Modem Manager\n\
+                     ● accounts-daemon.service loaded active running Accounts Service\n";
+
+        let services = merge_services(units, HashMap::new());
+        let names: Vec<&str> = services
+            .iter()
+            .map(|service| service.name.as_str())
+            .collect();
+
+        assert_eq!(
+            names,
+            [
+                "accounts-daemon.service",
+                "ModemManager.service",
+                "NetworkManager.service",
+            ]
+        );
     }
 
     #[test]
