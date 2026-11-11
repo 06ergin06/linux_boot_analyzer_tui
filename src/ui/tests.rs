@@ -1,6 +1,6 @@
 use super::*;
 use crate::custom_profiles::CustomProfile;
-use crate::service_db::{ServiceEntry, Tip};
+use crate::service_db::ServiceEntry;
 use crate::system::{BlameEntry, BootSummary, Service, SystemData, SystemInfo};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Terminal;
@@ -49,7 +49,7 @@ fn loaded_app(tab: Tab) -> App {
     app.tab = tab;
     app.loading = false;
     app.data = Some(sample_data());
-    app.tip_filter = crate::filters::TipFilter::All;
+    app.service_type_filter = crate::filters::ServiceTypeFilter::All;
     app
 }
 
@@ -405,11 +405,12 @@ fn a_long_service_description_is_not_clipped() {
         enabled: "enabled".to_string(),
     };
     let entry = ServiceEntry {
-        desc: DESCRIPTION.to_string(),
-        desc_en: DESCRIPTION.to_string(),
-        suggestion: SUGGESTION.to_string(),
-        oneri_en: SUGGESTION.to_string(),
-        tip: Tip::Suggestion,
+        description_tr: DESCRIPTION.to_string(),
+        description_en: DESCRIPTION.to_string(),
+        suggestion_tr: SUGGESTION.to_string(),
+        suggestion_en: SUGGESTION.to_string(),
+        critical: false,
+        required: false,
     };
 
     let lines = service_detail_lines_with(Some(&service), Some(&entry));

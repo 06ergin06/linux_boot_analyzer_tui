@@ -5,27 +5,35 @@ use std::sync::LazyLock;
 
 use serde::Deserialize;
 
-use crate::i18n;
+use crate::i18n::{self, Lang};
 
 const PROFILES_JSON: &str = include_str!("../assets/profiles_data.json");
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Profile {
-    pub name_tr_key: String,
+    pub name_tr: String,
+    pub name_en: String,
     #[allow(dead_code)]
     pub icon: String,
-    pub desc_tr_key: String,
+    pub description_tr: String,
+    pub description_en: String,
     pub services: HashMap<String, String>,
 }
 
 impl Profile {
     pub fn name(&self) -> &str {
-        i18n::t(&self.name_tr_key)
+        localized(&self.name_tr, &self.name_en)
     }
 
     pub fn description(&self) -> &str {
-        i18n::t(&self.desc_tr_key)
+        localized(&self.description_tr, &self.description_en)
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Label {
+    pub tr: String,
+    pub en: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -34,7 +42,26 @@ pub struct ProfilesData {
     #[serde(default)]
     pub safe_to_disable_services: Vec<String>,
     #[serde(default)]
-    pub profile_service_labels: HashMap<String, String>,
+    pub labels: HashMap<String, Label>,
+}
+
+fn localized<'a>(tr: &'a str, en: &'a str) -> &'a str {
+    match i18n::lang() {
+        Lang::En => {
+            if en.is_empty() {
+                tr
+            } else {
+                en
+            }
+        }
+        Lang::Tr => {
+            if tr.is_empty() {
+                en
+            } else {
+                tr
+            }
+        }
+    }
 }
 
 static DATA: LazyLock<ProfilesData> =
@@ -93,11 +120,10 @@ pub fn checklist_of<'a>(
 }
 
 fn friendly_name(name: &str) -> &str {
-    let Some(key) = data().profile_service_labels.get(name) else {
+    let Some(label) = data().labels.get(name) else {
         return name;
     };
-    let translated = i18n::t(key);
-    if translated == key { name } else { translated }
+    localized(&label.tr, &label.en)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -162,19 +188,21 @@ mod tests {
     }
 
     #[test]
-    fn profiles_have_translated_names_and_descriptions() {
+    fn profiles_have_localized_names_and_descriptions() {
         for id in ids() {
             let profile = &data().profiles[id];
-            assert_ne!(
-                profile.name(),
-                profile.name_tr_key,
-                "missing name translation for {id}"
+            assert!(!profile.name_tr.is_empty(), "missing Turkish name for {id}");
+            assert!(!profile.name_en.is_empty(), "missing English name for {id}");
+            assert!(
+                !profile.description_tr.is_empty(),
+                "missing Turkish description for {id}"
             );
-            assert_ne!(
-                profile.description(),
-                profile.desc_tr_key,
-                "missing description translation for {id}"
+            assert!(
+                !profile.description_en.is_empty(),
+                "missing English description for {id}"
             );
+            assert!(!profile.name().is_empty());
+            assert!(!profile.description().is_empty());
         }
     }
 

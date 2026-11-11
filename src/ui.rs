@@ -239,7 +239,7 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
         i18n::t("sub_state"),
         i18n::t("tui_boot_config"),
         i18n::t("time"),
-        i18n::t("tui_tip"),
+        i18n::t("tui_type"),
     ])
     .style(Style::new().fg(ACCENT).bold());
     let rows = visible.iter().map(|service| {
@@ -251,7 +251,8 @@ fn render_services(frame: &mut Frame, app: &App, area: Rect) {
             Cell::from(state_label(&service.enabled)).style(state_style(&service.enabled)),
             Cell::from(time).style(time_style(time)),
             match service_db::lookup(&service.name) {
-                Some(entry) => Cell::from(entry.tip.label()).style(tip_style(entry.tip)),
+                Some(entry) => Cell::from(entry.service_type().label())
+                    .style(service_type_style(entry.service_type())),
                 None => Cell::from("-").style(muted()),
             },
         ])
@@ -295,7 +296,11 @@ fn render_filter_bar(frame: &mut Frame, app: &App, area: Rect) {
     let mut spans = Vec::new();
     let filters = [
         ("f", i18n::t("tui_status"), app.status_filter.label()),
-        ("t", i18n::t("tui_tip_filter"), app.tip_filter.label()),
+        (
+            "t",
+            i18n::t("tui_type_filter"),
+            app.service_type_filter.label(),
+        ),
         ("s", i18n::t("tui_sort"), app.sort.label()),
     ];
     for (key, label, value) in filters {
@@ -340,7 +345,10 @@ fn service_detail_lines_with<'a>(
             Line::from(vec![
                 Span::styled(service.name.as_str(), Style::new().bold()),
                 Span::raw(" "),
-                Span::styled(format!("({})", entry.tip.label()), tip_style(entry.tip)),
+                Span::styled(
+                    format!("({})", entry.service_type().label()),
+                    service_type_style(entry.service_type()),
+                ),
             ]),
             Line::from(""),
             Line::from(entry.description()),
@@ -372,11 +380,11 @@ fn time_style(time: &str) -> Style {
     }
 }
 
-fn tip_style(tip: service_db::Tip) -> Style {
-    match tip {
-        service_db::Tip::Critical => Style::new().fg(BAD).bold(),
-        service_db::Tip::Required => Style::new().fg(WARN),
-        service_db::Tip::Suggestion => Style::new().fg(OK),
+fn service_type_style(service_type: service_db::ServiceType) -> Style {
+    match service_type {
+        service_db::ServiceType::Critical => Style::new().fg(BAD).bold(),
+        service_db::ServiceType::Required => Style::new().fg(WARN),
+        service_db::ServiceType::Suggestion => Style::new().fg(OK),
     }
 }
 

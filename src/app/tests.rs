@@ -54,7 +54,7 @@ fn app_with_services() -> App {
         backups: Ok(Vec::new()),
         custom_profiles: Ok(Vec::new()),
     });
-    app.tip_filter = TipFilter::All;
+    app.service_type_filter = ServiceTypeFilter::All;
     app
 }
 
@@ -138,7 +138,7 @@ fn starts_on_the_analysis_tab() {
 #[test]
 fn defaults_show_disable_recommendations_sorted_by_boot_time() {
     let app = App::new();
-    assert_eq!(app.tip_filter, TipFilter::Suggestion);
+    assert_eq!(app.service_type_filter, ServiceTypeFilter::Suggestion);
     assert_eq!(app.sort, SortBy::BootTime);
     assert_eq!(app.view, ServiceView::Services);
 }
@@ -372,7 +372,7 @@ fn s_cycles_the_sort_order() {
 #[test]
 fn the_suggestion_filter_hides_units_outside_the_knowledge_base() {
     let mut app = app_with_services();
-    app.tip_filter = TipFilter::Suggestion;
+    app.service_type_filter = ServiceTypeFilter::Suggestion;
     assert!(app.visible_services().is_empty());
 }
 
@@ -658,6 +658,10 @@ fn applying_a_profile_confirms_with_a_plan() {
 
     add_cups(&mut app);
 
+    app.profiles_selected = profiles::ids()
+        .iter()
+        .position(|profile| *profile == "minimum")
+        .expect("minimum profile");
     assert_eq!(app.selected_profile(), Some("minimum"));
     let (enable, disable) = profiles::selections("minimum");
     let plan = app.build_plan(&enable, &disable);

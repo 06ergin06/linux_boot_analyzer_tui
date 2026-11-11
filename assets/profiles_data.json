@@ -1,8 +1,12 @@
 {
+  "version": 1,
   "profiles": {
-    "ofis": {
-      "name_tr_key": "prof_office_name",
-      "desc_tr_key": "prof_office_desc",
+    "office": {
+      "id": "office",
+      "name_tr": "Ofis Modu",
+      "name_en": "Office Mode",
+      "description_tr": "Ofis işleri ve günlük kullanım için ideal ayarlar. Yazıcı, Bluetooth ve ağ servisleri açık kalır.",
+      "description_en": "Balanced defaults for office work and everyday use; printing, Bluetooth, and networking remain available.",
       "icon": "document-open",
       "services": {
         "avahi-daemon.service": "enable",
@@ -18,9 +22,12 @@
         "sshd.service": "disable"
       }
     },
-    "yazilimci": {
-      "name_tr_key": "prof_dev_name",
-      "desc_tr_key": "prof_dev_desc",
+    "developer": {
+      "id": "developer",
+      "name_tr": "Yazılımcı Modu",
+      "name_en": "Developer Mode",
+      "description_tr": "Yazılım geliştiriciler için hazırlandı. Docker, SSH ve veritabanı servisleri otomatik olarak etkinleştirilir. Yazıcı gibi gereksiz servisler kapatılır.",
+      "description_en": "A development-oriented preset that enables Docker, SSH, and database services while omitting printing-related units.",
       "icon": "utilities-terminal",
       "services": {
         "avahi-daemon.service": "disable",
@@ -37,8 +44,11 @@
       }
     },
     "minimum": {
-      "name_tr_key": "prof_min_name",
-      "desc_tr_key": "prof_min_desc",
+      "id": "minimum",
+      "name_tr": "Minimum Servis Modu",
+      "name_en": "Minimum Services",
+      "description_tr": "Sistemi en hızlı ve hafif şekilde başlatmak için. Ağ ve temel sistem güvenliği dışındaki tüm ek servisler kapatılır. Pil tasarrufu sağlar.",
+      "description_en": "A lean boot preset that keeps networking and core security while disabling optional services; useful on battery-powered systems.",
       "icon": "battery",
       "services": {
         "avahi-daemon.service": "disable",
@@ -69,13 +79,38 @@
     "NetworkManager-wait-online.service",
     "smartmontools.service"
   ],
-  "profile_service_labels": {
-    "bluetooth.service": "bluetooth_desc",
-    "cups-browsed.service": "cups_browsed_desc",
-    "cups.service": "cups_service_desc",
-    "docker.service": "docker_desc",
-    "mysql.service": "mysql_desc",
-    "postgresql.service": "postgresql_desc",
-    "ssh.service": "ssh_desc"
+  "labels": {
+    "cups.service": {
+      "tr": "Yazıcı Servisi (CUPS)",
+      "en": "Printer Service (CUPS)"
+    },
+    "cups-browsed.service": {
+      "tr": "Ağ Yazıcısı Bulucu",
+      "en": "Network Printer Discoverer"
+    },
+    "bluetooth.service": {
+      "tr": "Bluetooth Desteği",
+      "en": "Bluetooth Support"
+    },
+    "docker.service": {
+      "tr": "Docker Konteyner Motoru",
+      "en": "Docker Container Engine"
+    },
+    "postgresql.service": {
+      "tr": "PostgreSQL Veritabanı",
+      "en": "PostgreSQL Database"
+    },
+    "mysql.service": {
+      "tr": "MySQL / MariaDB Veritabanı",
+      "en": "MySQL / MariaDB Database"
+    },
+    "ssh.service": {
+      "tr": "SSH Uzaktan Erişim",
+      "en": "SSH Remote Access"
+    },
+    "sshd.service": {
+      "tr": "SSH Uzaktan Erişim",
+      "en": "SSH Remote Access"
+    }
   }
 }

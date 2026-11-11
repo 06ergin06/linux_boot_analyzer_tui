@@ -1,4 +1,4 @@
-//! Static service knowledge base, ported from `services_data.json`.
+//! Static service knowledge base, read from the canonical database.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -9,57 +9,68 @@ use crate::i18n::{self, Lang};
 
 const SERVICES_JSON: &str = include_str!("../assets/services_data.json");
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-pub enum Tip {
-    #[serde(rename = "suggestion")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceType {
     Suggestion,
-    #[serde(rename = "critical")]
     Critical,
-    #[serde(rename = "required")]
     Required,
 }
 
-impl Tip {
+impl ServiceType {
     pub fn label(self) -> &'static str {
         match self {
-            Tip::Suggestion => i18n::t("tui_tip_suggestion"),
-            Tip::Critical => i18n::t("tui_tip_critical"),
-            Tip::Required => i18n::t("tui_tip_required"),
+            ServiceType::Suggestion => i18n::t("tui_type_suggestion"),
+            ServiceType::Critical => i18n::t("tui_type_critical"),
+            ServiceType::Required => i18n::t("tui_type_required"),
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ServiceEntry {
-    pub desc: String,
-    pub tip: Tip,
-    pub suggestion: String,
-    pub desc_en: String,
-    pub oneri_en: String,
+    pub description_tr: String,
+    pub description_en: String,
+    pub suggestion_tr: String,
+    pub suggestion_en: String,
+    pub critical: bool,
+    pub required: bool,
 }
 
 impl ServiceEntry {
-    pub fn description(&self) -> &str {
-        let (primary, fallback) = match i18n::lang() {
-            Lang::En => (&self.desc_en, &self.desc),
-            Lang::Tr => (&self.desc, &self.desc_en),
-        };
-        if primary.is_empty() {
-            fallback
+    pub fn service_type(&self) -> ServiceType {
+        if self.critical {
+            ServiceType::Critical
+        } else if self.required {
+            ServiceType::Required
         } else {
-            primary
+            ServiceType::Suggestion
         }
     }
 
+    pub fn description(&self) -> &str {
+        localized(&self.description_tr, &self.description_en)
+    }
+
     pub fn suggestion_text(&self) -> &str {
-        let (primary, fallback) = match i18n::lang() {
-            Lang::En => (&self.oneri_en, &self.suggestion),
-            Lang::Tr => (&self.suggestion, &self.oneri_en),
-        };
-        if primary.is_empty() {
-            fallback
-        } else {
-            primary
+        localized(&self.suggestion_tr, &self.suggestion_en)
+    }
+}
+
+fn localized<'a>(tr: &'a str, en: &'a str) -> &'a str {
+    match i18n::lang() {
+        Lang::En => {
+            if en.is_empty() {
+                tr
+            } else {
+                en
+            }
+        }
+        Lang::Tr => {
+            if tr.is_empty() {
+                en
+            } else {
+                tr
+            }
         }
     }
 }
@@ -99,15 +110,15 @@ mod tests {
     #[test]
     fn known_service_is_classified() {
         let entry = lookup("NetworkManager.service").expect("known service");
-        assert_eq!(entry.tip, Tip::Critical);
-        assert!(!entry.desc.is_empty());
+        assert_eq!(entry.service_type(), ServiceType::Critical);
+        assert!(!entry.description_tr.is_empty());
     }
 
     #[test]
     fn required_service_is_classified() {
         let entry = lookup("archlinux-keyring-wkd-sync.service").expect("known service");
-        assert_eq!(entry.tip, Tip::Required);
-        assert!(!entry.desc.is_empty());
+        assert_eq!(entry.service_type(), ServiceType::Required);
+        assert!(!entry.description_tr.is_empty());
     }
 
     #[test]
