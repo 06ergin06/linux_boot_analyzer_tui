@@ -8,7 +8,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crate::autostart::{self, AutostartEntry};
 use crate::backups::{self, Backup};
 use crate::custom_profiles::{self, CustomProfile};
-use crate::filters::{ServiceView, SortBy, StatusFilter, TipFilter};
+use crate::filters::{ServiceTypeFilter, ServiceView, SortBy, StatusFilter};
 use crate::i18n;
 use crate::privilege::{self, Action};
 use crate::system::{self, Service, SystemData, parse_duration_seconds};
@@ -127,7 +127,7 @@ pub struct App {
     pub analysis_scroll: u16,
     pub loading: bool,
     pub status_filter: StatusFilter,
-    pub tip_filter: TipFilter,
+    pub service_type_filter: ServiceTypeFilter,
     pub sort: SortBy,
     pub query: String,
     pub searching: bool,
@@ -170,7 +170,7 @@ impl App {
             analysis_scroll: 0,
             loading: true,
             status_filter: StatusFilter::All,
-            tip_filter: TipFilter::Suggestion,
+            service_type_filter: ServiceTypeFilter::Suggestion,
             sort: SortBy::BootTime,
             query: String::new(),
             searching: false,
@@ -267,7 +267,7 @@ impl App {
             .iter()
             .filter(|service| self.view.matches(service))
             .filter(|service| self.status_filter.matches(service))
-            .filter(|service| self.tip_filter.matches(service))
+            .filter(|service| self.service_type_filter.matches(service))
             .filter(|service| {
                 query.is_empty()
                     || service.name.to_lowercase().contains(&query)
@@ -276,7 +276,12 @@ impl App {
             .collect();
 
         match self.sort {
-            SortBy::Name => visible.sort_by(|a, b| a.name.cmp(&b.name)),
+            SortBy::Name => visible.sort_by(|a, b| {
+                a.name
+                    .to_lowercase()
+                    .cmp(&b.name.to_lowercase())
+                    .then_with(|| a.name.cmp(&b.name))
+            }),
             SortBy::BootTime => {
                 let times = self.blame_times();
                 visible.sort_by(|a, b| {
@@ -286,7 +291,7 @@ impl App {
                     let b_time = times
                         .get(b.name.as_str())
                         .map_or(0.0, |t| parse_duration_seconds(t));
-                    b_time.total_cmp(&a_time)
+                    b_time.total_cmp(&a_time).then_with(|| a.name.cmp(&b.name))
                 });
             }
         }
@@ -702,7 +707,7 @@ impl App {
                 self.reset_selection();
             }
             KeyCode::Char('t') => {
-                self.tip_filter = self.tip_filter.next();
+                self.service_type_filter = self.service_type_filter.next();
                 self.reset_selection();
             }
             KeyCode::Char('s') => {

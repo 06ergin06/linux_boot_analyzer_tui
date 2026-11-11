@@ -54,8 +54,18 @@ fn app_with_services() -> App {
         backups: Ok(Vec::new()),
         custom_profiles: Ok(Vec::new()),
     });
-    app.tip_filter = TipFilter::All;
+    app.service_type_filter = ServiceTypeFilter::All;
     app
+}
+
+fn service(name: &str) -> Service {
+    Service {
+        name: name.to_string(),
+        active: "inactive".to_string(),
+        sub: "dead".to_string(),
+        description: String::new(),
+        enabled: "disabled".to_string(),
+    }
 }
 
 fn add_device(app: &mut App) {
@@ -128,7 +138,7 @@ fn starts_on_the_analysis_tab() {
 #[test]
 fn defaults_show_disable_recommendations_sorted_by_boot_time() {
     let app = App::new();
-    assert_eq!(app.tip_filter, TipFilter::Suggestion);
+    assert_eq!(app.service_type_filter, ServiceTypeFilter::Suggestion);
     assert_eq!(app.sort, SortBy::BootTime);
     assert_eq!(app.view, ServiceView::Services);
 }
@@ -313,6 +323,30 @@ fn services_are_sorted_by_boot_time_by_default() {
 }
 
 #[test]
+fn boot_time_sort_handles_minute_durations() {
+    let mut app = app_with_services();
+    if let Some(data) = app.data.as_mut() {
+        data.blame = Ok(vec![
+            BlameEntry {
+                time: "1min 52.659s".to_string(),
+                name: "b.service".to_string(),
+            },
+            BlameEntry {
+                time: "16.218s".to_string(),
+                name: "a.service".to_string(),
+            },
+        ]);
+    }
+
+    let names: Vec<&str> = app
+        .visible_services()
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    assert_eq!(names, ["b.service", "a.service"]);
+}
+
+#[test]
 fn sorting_by_name_is_alphabetical() {
     let mut app = app_with_services();
     app.sort = SortBy::Name;
@@ -325,6 +359,34 @@ fn sorting_by_name_is_alphabetical() {
 }
 
 #[test]
+fn sorting_by_name_ignores_letter_case() {
+    let mut app = app_with_services();
+    if let Some(data) = app.data.as_mut() {
+        data.services = Ok(vec![
+            service("NetworkManager.service"),
+            service("ModemManager.service"),
+            service("accounts-daemon.service"),
+            service("NetworkManager-wait-online.service"),
+        ]);
+    }
+    app.sort = SortBy::Name;
+    let names: Vec<&str> = app
+        .visible_services()
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "accounts-daemon.service",
+            "ModemManager.service",
+            "NetworkManager-wait-online.service",
+            "NetworkManager.service",
+        ]
+    );
+}
+
+#[test]
 fn s_cycles_the_sort_order() {
     let mut app = app_with_services();
     app.handle_key(press(KeyCode::Char('s')));
@@ -334,7 +396,7 @@ fn s_cycles_the_sort_order() {
 #[test]
 fn the_suggestion_filter_hides_units_outside_the_knowledge_base() {
     let mut app = app_with_services();
-    app.tip_filter = TipFilter::Suggestion;
+    app.service_type_filter = ServiceTypeFilter::Suggestion;
     assert!(app.visible_services().is_empty());
 }
 
@@ -620,6 +682,10 @@ fn applying_a_profile_confirms_with_a_plan() {
 
     add_cups(&mut app);
 
+    app.profiles_selected = profiles::ids()
+        .iter()
+        .position(|profile| *profile == "minimum")
+        .expect("minimum profile");
     assert_eq!(app.selected_profile(), Some("minimum"));
     let (enable, disable) = profiles::selections("minimum");
     let plan = app.build_plan(&enable, &disable);

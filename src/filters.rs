@@ -1,7 +1,7 @@
 //! Filters and sort order for the Services tab.
 
 use crate::i18n;
-use crate::service_db::{self, Tip};
+use crate::service_db::{self, ServiceType};
 use crate::system::Service;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,27 +52,27 @@ impl StatusFilter {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TipFilter {
+pub enum ServiceTypeFilter {
     All,
     Suggestion,
     Critical,
     Required,
 }
 
-impl TipFilter {
-    pub const ALL: [TipFilter; 4] = [
-        TipFilter::All,
-        TipFilter::Suggestion,
-        TipFilter::Critical,
-        TipFilter::Required,
+impl ServiceTypeFilter {
+    pub const ALL: [ServiceTypeFilter; 4] = [
+        ServiceTypeFilter::All,
+        ServiceTypeFilter::Suggestion,
+        ServiceTypeFilter::Critical,
+        ServiceTypeFilter::Required,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            TipFilter::All => i18n::t("tip_all"),
-            TipFilter::Suggestion => i18n::t("tip_suggestion"),
-            TipFilter::Critical => i18n::t("tip_critical"),
-            TipFilter::Required => i18n::t("tip_required"),
+            ServiceTypeFilter::All => i18n::t("type_all"),
+            ServiceTypeFilter::Suggestion => i18n::t("type_suggestion"),
+            ServiceTypeFilter::Critical => i18n::t("type_critical"),
+            ServiceTypeFilter::Required => i18n::t("type_required"),
         }
     }
 
@@ -84,19 +84,22 @@ impl TipFilter {
         Self::ALL[(index + 1) % Self::ALL.len()]
     }
 
-    fn wanted(self) -> Option<Tip> {
+    fn wanted(self) -> Option<ServiceType> {
         match self {
-            TipFilter::All => None,
-            TipFilter::Suggestion => Some(Tip::Suggestion),
-            TipFilter::Critical => Some(Tip::Critical),
-            TipFilter::Required => Some(Tip::Required),
+            ServiceTypeFilter::All => None,
+            ServiceTypeFilter::Suggestion => Some(ServiceType::Suggestion),
+            ServiceTypeFilter::Critical => Some(ServiceType::Critical),
+            ServiceTypeFilter::Required => Some(ServiceType::Required),
         }
     }
 
     pub fn matches(self, service: &Service) -> bool {
         match self.wanted() {
             None => true,
-            Some(tip) => service_db::lookup(&service.name).map(|entry| entry.tip) == Some(tip),
+            Some(service_type) => {
+                service_db::lookup(&service.name).map(|entry| entry.service_type())
+                    == Some(service_type)
+            }
         }
     }
 }
@@ -196,10 +199,10 @@ mod tests {
     }
 
     #[test]
-    fn tip_filter_uses_the_knowledge_base() {
+    fn service_type_filter_uses_the_knowledge_base() {
         let network_manager = service("NetworkManager.service", "active", "enabled");
-        assert!(TipFilter::Critical.matches(&network_manager));
-        assert!(!TipFilter::Suggestion.matches(&network_manager));
+        assert!(ServiceTypeFilter::Critical.matches(&network_manager));
+        assert!(!ServiceTypeFilter::Suggestion.matches(&network_manager));
     }
 
     #[test]
@@ -237,10 +240,10 @@ mod tests {
         }
         assert_eq!(status, StatusFilter::All);
 
-        let mut tip = TipFilter::All;
-        for _ in 0..TipFilter::ALL.len() {
-            tip = tip.next();
+        let mut service_type = ServiceTypeFilter::All;
+        for _ in 0..ServiceTypeFilter::ALL.len() {
+            service_type = service_type.next();
         }
-        assert_eq!(tip, TipFilter::All);
+        assert_eq!(service_type, ServiceTypeFilter::All);
     }
 }

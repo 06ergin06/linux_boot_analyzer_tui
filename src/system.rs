@@ -110,9 +110,12 @@ fn parse_blame(output: &str) -> Vec<BlameEntry> {
     output
         .lines()
         .filter_map(|line| {
-            let (time, name) = line.trim().split_once(char::is_whitespace)?;
+            // Durations can contain spaces (for example `1min 52.659s`), while
+            // unit names never do. Split off the unit name from the right.
+            let (time, name) = line.trim().rsplit_once(char::is_whitespace)?;
+            let time = time.trim();
             let name = name.trim();
-            if name.is_empty() {
+            if time.is_empty() || name.is_empty() {
                 return None;
             }
             Some(BlameEntry {
@@ -238,7 +241,12 @@ fn merge_services(units: &str, mut file_states: HashMap<String, String>) -> Vec<
         });
     }
 
-    services.sort_by(|a, b| a.name.cmp(&b.name));
+    services.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then_with(|| a.name.cmp(&b.name))
+    });
     services
 }
 
@@ -400,6 +408,16 @@ mod tests {
     }
 
     #[test]
+    fn parses_blame_lines_with_minute_durations() {
+        let entries = parse_blame("1min 52.659s plocate-updatedb.service\n16.218s tpm.device\n");
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].time, "1min 52.659s");
+        assert_eq!(entries[0].name, "plocate-updatedb.service");
+        assert_eq!(entries[1].time, "16.218s");
+        assert_eq!(entries[1].name, "tpm.device");
+    }
+
+    #[test]
     fn parses_blame_durations() {
         assert!((parse_duration_seconds("5.678s") - 5.678).abs() < 1e-9);
         assert!((parse_duration_seconds("234ms") - 0.234).abs() < 1e-9);
@@ -453,6 +471,28 @@ mod tests {
             .collect();
 
         assert_eq!(names, ["dev-sda.device", "sshd.socket"]);
+    }
+
+    #[test]
+    fn merge_sorts_service_names_ignoring_letter_case() {
+        let units = "● NetworkManager.service loaded active running Network Manager\n\
+                     ● ModemManager.service loaded active running Modem Manager\n\
+                     ● accounts-daemon.service loaded active running Accounts Service\n";
+
+        let services = merge_services(units, HashMap::new());
+        let names: Vec<&str> = services
+            .iter()
+            .map(|service| service.name.as_str())
+            .collect();
+
+        assert_eq!(
+            names,
+            [
+                "accounts-daemon.service",
+                "ModemManager.service",
+                "NetworkManager.service",
+            ]
+        );
     }
 
     #[test]
