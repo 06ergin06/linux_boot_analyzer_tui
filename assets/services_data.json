@@ -4,7 +4,14 @@
     "desc_en": "Provides account and authentication metadata to desktop login and user-switching components.",
     "suggestion": "Kapatmayın. Kullanıcı yönetimi ve sisteme giriş yapabilmek için kesinlikle gereklidir.",
     "oneri_en": "Keep enabled; login screens and user management depend on it.",
-    "tip": "kritik"
+    "tip": "critical"
+  },
+  "alsa-restore.service": {
+    "desc": "Ses kartı durumunu kapatırken kaydeder ve açılışta geri yükler.",
+    "desc_en": "Saves sound-card state at shutdown and restores it during boot.",
+    "suggestion": "Ses düzeyi ve ayarlarının korunması gerekmiyorsa kapatılabilir.",
+    "oneri_en": "Disable it when audio levels and mixer settings do not need to persist across reboots.",
+    "tip": "suggestion"
   },
   "ananicy-cpp.service": {
     "desc": "IO ve CPU önceliklerini otomatik ayarlayarak sistem yanıt verebilirliğini artırır.",
@@ -18,7 +25,14 @@
     "desc_en": "Activates AppArmor policy enforcement for confined applications.",
     "suggestion": "Kapatmayın. Sistem güvenliği ve zararlı yazılımların sınırlandırılması için gereklidir.",
     "oneri_en": "Keep enabled where AppArmor profiles are part of the security model.",
-    "tip": "kritik"
+    "tip": "critical"
+  },
+  "apport.service": {
+    "desc": "Ubuntu sistemlerinde çökme raporlarını toplar ve hata bildirimlerine hazırlar.",
+    "desc_en": "Collects crash reports and prepares them for bug reporting on Ubuntu systems.",
+    "suggestion": "Çökme raporlarını paylaşmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it if crash reports are not collected or submitted.",
+    "tip": "suggestion"
   },
   "apt-daily-upgrade.service": {
     "desc": "Bekleyen paket güncellemelerini otomatik yükler.",
@@ -39,7 +53,7 @@
     "desc_en": "Refreshes Arch Linux signing keys from the Web Key Directory.",
     "suggestion": "Pacman paket doğrulaması için gereklidir.",
     "oneri_en": "Needed by pacman when package signatures are verified.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "asus-shutdown.service": {
     "desc": "ASUS donanımını bilgisayar kapanırken güvenli şekilde kapatır.",
@@ -81,7 +95,7 @@
     "desc_en": "Coordinates block-device availability during shutdown and startup.",
     "suggestion": "Kapatmayın. Disklerin güvenli yönetimi için gereklidir.",
     "oneri_en": "Keep enabled when local block devices are managed by systemd.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "bluetooth.service": {
     "desc": "Bluetooth cihazlarının (klavye, fare, kulaklık vb.) bağlanmasını ve yönetimini sağlar.",
@@ -104,6 +118,13 @@
     "oneri_en": "Leave enabled to keep Wi-Fi channel and power settings compliant.",
     "tip": "suggestion"
   },
+  "chrony.service": {
+    "desc": "chrony NTP istemcisini çalıştırarak sistem saatini ağ üzerinden senkronize eder.",
+    "desc_en": "Runs the chrony NTP client to keep the system clock synchronized over the network.",
+    "suggestion": "Saat senkronizasyonu için açık bırakın; başka bir NTP istemcisi kullanıyorsanız kapatılabilir.",
+    "oneri_en": "Keep it enabled unless another NTP client manages time synchronization.",
+    "tip": "required"
+  },
   "colord.service": {
     "desc": "Renk yönetimi profillerini yönetir. Monitör ve yazıcı renk doğruluğunu sağlar.",
     "desc_en": "Maintains color profiles for displays, scanners, and printers.",
@@ -111,12 +132,26 @@
     "oneri_en": "It can be skipped on systems that do not require color management.",
     "tip": "suggestion"
   },
+  "com.system76.Scheduler.service": {
+    "desc": "Ön plandaki masaüstü uygulamaları için CPU zamanlamasını ve süreç önceliklerini ayarlar.",
+    "desc_en": "Adjusts CPU scheduling and process priorities for foreground desktop workloads.",
+    "suggestion": "Pop!_OS masaüstlerinde faydalıdır; sunucularda gerekmez.",
+    "oneri_en": "Useful on Pop!_OS desktops; servers and non-interactive systems do not need it.",
+    "tip": "suggestion"
+  },
+  "com.system76.SystemUpdater.service": {
+    "desc": "Pop!_OS sistem güncellemelerini yöneten arka plan servisini çalıştırır.",
+    "desc_en": "Runs the Pop!_OS background service that manages system updates.",
+    "suggestion": "Güncellemeleri başka bir araçla yönetiyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when updates are managed by another tool.",
+    "tip": "suggestion"
+  },
   "console-setup.service": {
     "desc": "Konsol ekran yazı tipini ve klavye düzenini ayarlar.",
     "desc_en": "Sets the console keyboard map and font during early boot.",
     "suggestion": "Açık kalması önerilir. Konsol ekranında Türkçe klavye desteği için gereklidir.",
     "oneri_en": "Keep enabled when a local text console must use the correct layout.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "containerd.service": {
     "desc": "Konteyner çalıştırma ortamı (containerd). Docker ve diğer konteynerlerin temeli.",
@@ -124,6 +159,13 @@
     "suggestion": "Docker/konteyner kullanmıyorsanız kapatılabilir.",
     "oneri_en": "Disable it when no container workloads are used.",
     "tip": "suggestion"
+  },
+  "cosmic-greeter-daemon.service": {
+    "desc": "COSMIC masaüstü için grafik oturum açma ekranını çalıştırır.",
+    "desc_en": "Runs the graphical login greeter daemon for the COSMIC desktop.",
+    "suggestion": "COSMIC oturum açma ekranını kullanıyorsanız açık bırakın.",
+    "oneri_en": "Keep it enabled on systems that use the COSMIC greeter.",
+    "tip": "critical"
   },
   "cups-browsed.service": {
     "desc": "Ağdaki paylaşımlı yazıcıları otomatik olarak keşfeder ve sisteme ekler.",
@@ -144,28 +186,35 @@
     "desc_en": "Implements a high-throughput D-Bus message broker.",
     "suggestion": "Kapatmayın. Masaüstü ortamı için gereklidir.",
     "oneri_en": "Keep enabled; desktop and system services rely on D-Bus.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "dbus.service": {
     "desc": "Uygulamalar arası iletişim veri yolu (D-Bus). Masaüstü ortamının temel iletişim katmanıdır.",
     "desc_en": "Starts the system D-Bus bus used for inter-process communication.",
     "suggestion": "Kapatmayın. Masaüstü arayüzü ve sistem servislerinin çalışması için kesinlikle gereklidir.",
     "oneri_en": "Do not disable; many core services require it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "dirmngr@.service": {
     "desc": "GPG anahtar sunucusu ile iletişimi yönetir. Paket imzalarının doğrulanması için kullanılır.",
     "desc_en": "Handles GnuPG directory and key-server communication.",
     "suggestion": "Pacman ve paket imzası doğrulaması için genelde gereklidir.",
     "oneri_en": "Keep it available when package or key signature verification is used.",
-    "tip": "gerekli"
+    "tip": "required"
+  },
+  "disable-turbo.service": {
+    "desc": "CPU turbo boost’u kapatarak güç tüketimini ve sıcaklığı sınırlar.",
+    "desc_en": "Disables CPU turbo boost to cap power consumption and heat output.",
+    "suggestion": "Turbo boost’un kapalı kalmasını istemiyorsanız kapatın.",
+    "oneri_en": "Disable it when turbo boost should remain available.",
+    "tip": "suggestion"
   },
   "dm-event.service": {
     "desc": "Device Mapper olaylarını izler ve LVM işlemlerini tetikler.",
     "desc_en": "Monitors device-mapper events for LVM and related storage stacks.",
     "suggestion": "LVM kullanıyorsanız kapatmayın.",
     "oneri_en": "Enable it on systems that use LVM or device-mapper volumes.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "docker.service": {
     "desc": "Docker konteyner platformu. Konteynerleri çalıştırır ve yönetir.",
@@ -200,7 +249,7 @@
     "desc_en": "Opens an emergency shell when the system cannot reach normal boot targets.",
     "suggestion": "Kapatmayın. Kurtarma modu için gereklidir.",
     "oneri_en": "Do not disable; it provides last-resort recovery access.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "exim4-base.service": {
     "desc": "Exim4 yerel e-posta sunucusu temel yapılandırma servisi.",
@@ -216,12 +265,19 @@
     "oneri_en": "Desktop systems normally do not need a local MTA.",
     "tip": "suggestion"
   },
+  "finalrd.service": {
+    "desc": "Kapanış sırasında kök dosya sistemi ayrıldıktan sonra çalışacak geçici bir ramdisk hazırlar.",
+    "desc_en": "Builds a temporary final ramdisk used by shutdown hooks after the root filesystem is unmounted.",
+    "suggestion": "Kapanış sonrası bakım betikleri kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when no shutdown-time cleanup hooks are required.",
+    "tip": "suggestion"
+  },
   "fstrim.service": {
     "desc": "SSD disklerde kullanılmayan veri bloklarını temizler (TRIM). SSD ömrünü uzatır.",
     "desc_en": "Discards unused blocks on mounted filesystems to maintain SSD performance.",
     "suggestion": "SSD kullanıyorsanız kesinlikle açık bırakılmalıdır. Sadece HDD kullanıyorsanız kapatılabilir.",
     "oneri_en": "Keep it on SSD-backed systems; it is unnecessary for HDD-only storage.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "fwupd-refresh.service": {
     "desc": "Donanım yazılımı güncelleme veritabanını belirli aralıklarla yeniler.",
@@ -242,91 +298,133 @@
     "desc_en": "Runs the GNOME Display Manager and its graphical login screen.",
     "suggestion": "Kapatmayın. Grafik arayüzle oturum açabilmeniz için kesinlikle gereklidir.",
     "oneri_en": "Keep it enabled on systems that boot into a GNOME desktop session.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "getty@.service": {
     "desc": "Sanal konsolda (TTY) oturum açmayı sağlar. Ctrl+Alt+F1-F6 ile geçilen ekranlar.",
     "desc_en": "Starts a text login prompt on a virtual console.",
     "suggestion": "Kapatmayın. Konsol oturumu için gereklidir.",
     "oneri_en": "Keep at least one getty available for local recovery.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "gpg-agent@.service": {
     "desc": "GPG şifreleme anahtarlarını bellekte tutar. Paket imzalaması ve şifreleme için.",
     "desc_en": "Runs the GnuPG agent that holds private keys and passphrases.",
     "suggestion": "Pacman ve paket yönetimi için genelde gerekli.",
     "oneri_en": "Disable it only if GnuPG signing or encryption is not used.",
-    "tip": "gerekli"
+    "tip": "required"
+  },
+  "gpu-manager.service": {
+    "desc": "Açılışta grafik donanımını algılar ve sürücü yapılandırmasını uygular.",
+    "desc_en": "Detects graphics hardware and applies driver or alternative configuration at boot.",
+    "suggestion": "Grafik sürücülerini elle yönetiyorsanız veya hibrit grafik kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it if graphics drivers are managed manually or hybrid graphics are not used.",
+    "tip": "suggestion"
   },
   "grub-common.service": {
     "desc": "GRUB başlangıç yöneticisi ayarlarını başlangıçta kontrol eder.",
     "desc_en": "Synchronizes bootloader metadata after kernel or GRUB updates.",
     "suggestion": "Açık bırakılması önerilir. Çekirdek güncellemelerinin GRUB'a doğru işlenmesini sağlar.",
     "oneri_en": "Keep it enabled so kernel updates remain bootable.",
-    "tip": "gerekli"
+    "tip": "required"
+  },
+  "hpm-fan.service": {
+    "desc": "Desteklenen HP OMEN dizüstü bilgisayarlarda fan eğrilerini ve soğutma davranışını yönetir.",
+    "desc_en": "Controls fan curves and cooling behavior on supported HP OMEN laptops.",
+    "suggestion": "HP OMEN donanımında açık bırakın; diğer sistemlerde gerekmez.",
+    "oneri_en": "Keep it enabled on supported HP OMEN laptops; it is unnecessary on other hardware.",
+    "tip": "suggestion"
+  },
+  "hpm-mux.service": {
+    "desc": "Desteklenen HP OMEN dizüstülerde ekran MUX’unu ve grafik geçiş arayüzünü denetler.",
+    "desc_en": "Controls the display MUX and graphics-switching interface on supported HP OMEN laptops.",
+    "suggestion": "MUX veya grafik geçişi kullanmıyorsanız kapatabilirsiniz.",
+    "oneri_en": "Disable it when display MUX or GPU switching controls are not needed.",
+    "tip": "suggestion"
+  },
+  "hpm-platform.service": {
+    "desc": "HP OMEN platform kontrollerini (performans modu gibi) arka plan servisi olarak sunar.",
+    "desc_en": "Exposes HP OMEN platform controls such as performance modes through a background service.",
+    "suggestion": "HP OMEN donanımında açık bırakın; diğer sistemlerde gereksizdir.",
+    "oneri_en": "Keep it enabled on HP OMEN hardware; it is redundant elsewhere.",
+    "tip": "suggestion"
+  },
+  "hpm-power.service": {
+    "desc": "Desteklenen HP OMEN dizüstülerde güç ve pil davranışını yönetir.",
+    "desc_en": "Applies power and battery settings on supported HP OMEN laptops.",
+    "suggestion": "HP OMEN güç yönetimini kullanmıyorsanız kapatabilirsiniz.",
+    "oneri_en": "Disable it when HP OMEN power controls are not used.",
+    "tip": "suggestion"
+  },
+  "hpm-rgb.service": {
+    "desc": "Desteklenen HP OMEN dizüstülerde klavye RGB aydınlatmasını denetler.",
+    "desc_en": "Manages keyboard RGB lighting on supported HP OMEN laptops.",
+    "suggestion": "RGB aydınlatma kullanmıyorsanız kapatabilirsiniz.",
+    "oneri_en": "Disable it when RGB lighting control is not needed.",
+    "tip": "suggestion"
   },
   "ifupdown-pre.service": {
     "desc": "Ağ arayüzleri başlatılmadan önce gerekli hazırlıkları yapar.",
     "desc_en": "Prepares interfaces for the legacy ifupdown network stack.",
     "suggestion": "Geleneksel ağ yönetimi kullanan sistemlerde açık bırakılır.",
     "oneri_en": "Required only on systems configured through /etc/network/interfaces.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "initrd-cleanup.service": {
     "desc": "Initrd (ilk RAM disk) aşamasından sonra geçici dosyaları temizler.",
     "desc_en": "Removes temporary initrd state after the root filesystem has been mounted.",
     "suggestion": "Kapatmayın. Sistem başlangıcı için gereklidir.",
     "oneri_en": "Do not disable; it is part of the initrd boot sequence.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "initrd-parse-etc.service": {
     "desc": "Initrd aşamasında /etc dosyalarını okur ve yapılandırmayı yükler.",
     "desc_en": "Reads configuration from /etc while the initrd is active.",
     "suggestion": "Kapatmayın.",
     "oneri_en": "Do not disable; initrd setup depends on it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "initrd-switch-root.service": {
     "desc": "Initrd'den gerçek kök dosya sistemine geçişi yönetir.",
     "desc_en": "Switches execution from the initrd to the real root filesystem.",
     "suggestion": "Kapatmayın.",
     "oneri_en": "Do not disable; the system cannot finish booting without it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "initrd-udevadm-cleanup-db.service": {
     "desc": "Initrd aşamasındaki cihaz veritabanını temizler.",
     "desc_en": "Cleans the temporary udev database used inside the initrd.",
     "suggestion": "Kapatmayın.",
     "oneri_en": "Do not disable; it completes the initrd-to-system handoff.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "keyboard-setup.service": {
     "desc": "Klavye düzenini açılışın erken evresinde yapılandırır.",
     "desc_en": "Loads the configured keyboard layout before user sessions start.",
     "suggestion": "Açık kalmalıdır. Doğru klavye yerleşimi için gereklidir.",
     "oneri_en": "Keep it enabled when the console keyboard layout must be correct.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "keyboxd@.service": {
     "desc": "GPG anahtar deposu yöneticisi. GPG anahtarlarını güvenli şekilde saklar.",
     "desc_en": "Runs the GnuPG keybox management service.",
     "suggestion": "Pacman için genelde gerekli.",
     "oneri_en": "Disable it only when GnuPG key management is not needed.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "kmod-static-nodes.service": {
     "desc": "Çekirdek modülleri için gerekli statik cihaz düğümlerini oluşturur.",
     "desc_en": "Creates static device nodes declared by kernel modules.",
     "suggestion": "Kapatmayın. Donanımların doğru çalışabilmesi için gereklidir.",
     "oneri_en": "Keep it enabled so expected device nodes exist at boot.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "ldconfig.service": {
     "desc": "Paylaşılan kütüphane (shared library) önbelleğini günceller.",
     "desc_en": "Rebuilds the dynamic linker cache for shared libraries.",
     "suggestion": "Kapatmayın. Yeni kütüphanelerin tanınması için gereklidir.",
     "oneri_en": "Do not disable; applications depend on an up-to-date library cache.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "libvirt-guests.service": {
     "desc": "Sanal makinelerin durumunu kaydeder ve geri yükler.",
@@ -354,7 +452,7 @@
     "desc_en": "Rotates, compresses, and expires log files according to policy.",
     "suggestion": "Açık kalması önerilir. Log dosyalarının zamanla diski doldurmasını engeller.",
     "oneri_en": "Keep it enabled to prevent logs from filling the filesystem.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "lvm2-lvmpolld.service": {
     "desc": "LVM hacim yönetimi işlemlerini arka planda izler ve yönetir.",
@@ -382,7 +480,7 @@
     "desc_en": "Builds a shutdown initramfs for clean filesystem teardown.",
     "suggestion": "Kapatmayın. Sistemin güvenli kapanması için gereklidir.",
     "oneri_en": "Keep it enabled so shutdown can unmount storage safely.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "ModemManager.service": {
     "desc": "Mobil geniş bant (3G/4G/LTE) modem ve SIM kart bağlantılarını yönetir.",
@@ -396,14 +494,21 @@
     "desc_en": "Loads kernel modules requested during boot.",
     "suggestion": "Kapatmayın. Sürücü ve çekirdek modüllerinin yüklenmesi için gereklidir.",
     "oneri_en": "Do not disable; drivers and kernel features depend on module loading.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "modprobe@.service": {
     "desc": "Belirli kernel modüllerini başlangıçta yükler.",
     "desc_en": "Loads one specific kernel module on demand.",
     "suggestion": "Kapatmayın. Donanım sürücüleri için gereklidir.",
     "oneri_en": "Do not disable entries that provide required hardware drivers.",
-    "tip": "kritik"
+    "tip": "critical"
+  },
+  "motd-news.service": {
+    "desc": "Ubuntu MOTD haberlerini indirip günlük giriş mesajına ekler.",
+    "desc_en": "Downloads Ubuntu MOTD news and updates the message shown at login.",
+    "suggestion": "Giriş ekranındaki haberleri istemiyorsanız kapatılabilir.",
+    "oneri_en": "Disable it if login-time news messages are not wanted.",
+    "tip": "suggestion"
   },
   "mysql.service": {
     "desc": "MySQL/MariaDB veritabanı sunucusu.",
@@ -412,12 +517,19 @@
     "oneri_en": "Disable it when the host does not provide a MySQL-compatible database.",
     "tip": "suggestion"
   },
+  "networkd-dispatcher.service": {
+    "desc": "systemd-networkd bağlantı ve adres olaylarına yanıt olarak dispatcher betiklerini çalıştırır.",
+    "desc_en": "Runs dispatcher scripts in response to systemd-networkd link and address events.",
+    "suggestion": "NetworkManager kullanıyorsanız veya özel dispatcher betikleriniz yoksa kapatılabilir.",
+    "oneri_en": "Disable it when NetworkManager is used or no custom network dispatcher scripts are configured.",
+    "tip": "suggestion"
+  },
   "networking.service": {
     "desc": "Geleneksel ağ arayüzlerini başlangıçta yapılandırır.",
     "desc_en": "Brings up interfaces configured by the legacy ifupdown system.",
     "suggestion": "NetworkManager dışındaki manuel ağ yapılandırmaları için gereklidir.",
     "oneri_en": "Required only where /etc/network/interfaces is the active network configuration.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "NetworkManager-wait-online.service": {
     "desc": "Ağların kullanıma hazır olmasını bekler. Açılışta ağ bağlantısının tamamen kurulmasını bekleyerek sistemi geciktirebilir.",
@@ -431,21 +543,35 @@
     "desc_en": "Runs the primary network connection manager for wired, wireless, and mobile links.",
     "suggestion": "Kapatmayın. Sisteminizin internete ve yerel ağa bağlanması için kesinlikle gereklidir.",
     "oneri_en": "Leave enabled on systems that need managed network connectivity.",
-    "tip": "kritik"
+    "tip": "critical"
+  },
+  "nvidia-persistenced.service": {
+    "desc": "NVIDIA GPU sürücüsünün kalıcılık modunu koruyarak başlatma yükünü azaltır.",
+    "desc_en": "Keeps the NVIDIA GPU driver initialized in persistence mode to reduce startup overhead.",
+    "suggestion": "NVIDIA GPU kullanmıyorsanız veya kalıcılık moduna ihtiyacınız yoksa kapatabilirsiniz.",
+    "oneri_en": "Disable it on systems without NVIDIA GPUs or when persistence mode is not needed.",
+    "tip": "suggestion"
   },
   "nvidia-resume.service": {
     "desc": "NVIDIA ekran kartı sürücüsünü uyku/uyanma durumunda yönetir.",
     "desc_en": "Restores NVIDIA GPU state after the system resumes from sleep.",
     "suggestion": "NVIDIA kart kullanıyorsanız kapatmayın.",
     "oneri_en": "Keep it enabled on machines with NVIDIA GPUs that use suspend.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "nvidia-suspend.service": {
     "desc": "NVIDIA ekran kartı sürücüsünü uyku modunda yönetir.",
     "desc_en": "Prepares NVIDIA GPUs for system suspend.",
     "suggestion": "NVIDIA kart kullanıyorsanız kapatmayın.",
     "oneri_en": "Keep it enabled on machines with NVIDIA GPUs that use suspend.",
-    "tip": "gerekli"
+    "tip": "required"
+  },
+  "openvpn.service": {
+    "desc": "OpenVPN bağlantılarını başlatan geleneksel init servisini çalıştırır.",
+    "desc_en": "Runs the traditional OpenVPN init service that starts configured VPN connections.",
+    "suggestion": "OpenVPN kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when OpenVPN connections are not used.",
+    "tip": "suggestion"
   },
   "packagekit.service": {
     "desc": "Yazılım yöneticisi arka plan servisi. Paket güncelleme ve yükleme işlemlerini yönetir.",
@@ -480,7 +606,7 @@
     "desc_en": "Persists Plymouth runtime state to disk during boot.",
     "suggestion": "Kapatmayın. Plymouth önyükleme verilerinin diske yazılması için gereklidir.",
     "oneri_en": "Keep it enabled when Plymouth is part of the boot experience.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "plymouth-start.service": {
     "desc": "Başlangıç animasyonunu (Pardus açılış logosu ve yükleme ekranı) başlatır.",
@@ -494,7 +620,14 @@
     "desc_en": "Evaluates authorization policy for privileged desktop and system actions.",
     "suggestion": "Kapatmayın. Sistem güvenliği ve yetkilendirme işlemleri için kesinlikle gereklidir.",
     "oneri_en": "Keep it enabled; graphical privilege prompts depend on it.",
-    "tip": "kritik"
+    "tip": "critical"
+  },
+  "pop-default-settings-zram.service": {
+    "desc": "Pop!_OS varsayılanlarıyla sıkıştırılmış zram takas alanını yapılandırır ve etkinleştirir.",
+    "desc_en": "Configures and enables compressed zram swap using Pop!_OS defaults.",
+    "suggestion": "Zram kullanmıyorsanız veya hazırda bekletme için disk takası gerekiyorsa kapatılabilir.",
+    "oneri_en": "Disable it when zram is not used or disk-backed swap is required for hibernation.",
+    "tip": "suggestion"
   },
   "postgresql.service": {
     "desc": "PostgreSQL veritabanı sunucusu.",
@@ -522,28 +655,49 @@
     "desc_en": "Provides a rescue shell for repairing a system that failed to boot normally.",
     "suggestion": "Kapatmayın. Acil durum kurtarma için gereklidir.",
     "oneri_en": "Do not disable; it is a recovery path.",
-    "tip": "kritik"
+    "tip": "critical"
+  },
+  "rsyslog.service": {
+    "desc": "Sistem günlüklerini klasik syslog dosyalarına yazar ve uzak toplayıcılara iletebilir.",
+    "desc_en": "Writes system logs to classic syslog files and can forward them to remote collectors.",
+    "suggestion": "Yalnızca journald kullanıyorsanız ve uzak günlük toplamıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it if journald is the only logging system and no remote log collector is used.",
+    "tip": "suggestion"
   },
   "rtkit-daemon.service": {
     "desc": "Gerçek zamanlı ses ve medya işlemleri için sistem önceliklerini yönetir.",
     "desc_en": "Grants real-time scheduling priorities to audio and media processes.",
     "suggestion": "Açık kalmalıdır. Ses sisteminin (PulseAudio/PipeWire) düzgün ve takılmadan çalışması için gereklidir.",
     "oneri_en": "Keep it enabled for low-latency audio through PulseAudio or PipeWire.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "sddm.service": {
     "desc": "Basit masaüstü yöneticisi (SDDM). Grafiksel giriş ekranı.",
     "desc_en": "Runs the SDDM graphical login manager.",
     "suggestion": "Kapatmayın. Grafik arayüz için gereklidir.",
     "oneri_en": "Keep it enabled on systems that use SDDM for graphical login.",
-    "tip": "kritik"
+    "tip": "critical"
+  },
+  "secureboot-db.service": {
+    "desc": "UEFI Secure Boot sertifika iptal veritabanını (DBX) günceller.",
+    "desc_en": "Updates the UEFI Secure Boot certificate revocation database (DBX).",
+    "suggestion": "Secure Boot kullanıyorsanız açık bırakın; güvenlik güncellemeleri için önemlidir.",
+    "oneri_en": "Keep it enabled when Secure Boot is used; it applies important revocation updates.",
+    "tip": "required"
+  },
+  "setvtrgb.service": {
+    "desc": "Metin konsolunun renk paletini yapılandırır.",
+    "desc_en": "Applies the configured color palette to the Linux text console.",
+    "suggestion": "Konsol renklerini özelleştirmiyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when custom console colors are not needed.",
+    "tip": "suggestion"
   },
   "shadow.service": {
     "desc": "Gölge parola ve kullanıcı hesabı bilgilerini günceller.",
     "desc_en": "Verifies the integrity of the shadow password database.",
     "suggestion": "Kapatmayın. Kullanıcı yönetimi için gereklidir.",
     "oneri_en": "Keep it enabled to detect authentication database corruption.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "smartmontools.service": {
     "desc": "Sabit disk ve SSD sağlık durumunu (S.M.A.R.T.) izler, olası disk arızalarını tahmin eder.",
@@ -634,7 +788,7 @@
     "desc_en": "Passes boot-time entropy to the system random number generator.",
     "suggestion": "TPM kullanıyorsanız kapatmayın.",
     "oneri_en": "Keep it enabled for stronger early-boot randomness.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-bsod.service": {
     "desc": "Kritik sistem hatalarında mavi ekran (BSOD) gösterir.",
@@ -655,7 +809,7 @@
     "desc_en": "Activates encrypted block devices during boot.",
     "suggestion": "Kapatmayın. Şifrelenmiş diskinizin açılması için gereklidir.",
     "oneri_en": "Keep it enabled on systems that use LUKS encryption.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-firstboot.service": {
     "desc": "Sistem ilk başlatıldığında temel yapılandırma (dil, saat, klavye) sorar.",
@@ -669,28 +823,28 @@
     "desc_en": "Runs filesystem consistency checks during boot.",
     "suggestion": "Kapatmayın. Olası dosya sistemi hatalarını ve veri kayıplarını önlemek için gereklidir.",
     "oneri_en": "Keep it enabled to catch and repair filesystem damage.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-fsck@.service": {
     "desc": "Başlangıçta disk dosya sistemi sağlığını kontrol eder (fsck).",
     "desc_en": "Checks one specific filesystem during boot.",
     "suggestion": "Kapatmayın. Disk hatalarını önlemek için gereklidir.",
     "oneri_en": "Do not disable for filesystems that require boot-time checking.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-hibernate-resume.service": {
     "desc": "Hazırda bekletme (hibernate) modundan dönüşte sistem durumunu geri yükler.",
     "desc_en": "Resumes the system from a hibernation image.",
     "suggestion": "Hazırda bekletme kullanıyorsanız kapatmayın.",
     "oneri_en": "Keep it enabled when hibernation is used.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-hostnamed.service": {
     "desc": "Bilgisayar adını (hostname) yönetir.",
     "desc_en": "Maintains the system hostname through a D-Bus interface.",
     "suggestion": "Genelde açık bırakılır. Yerel ağda bilgisayar adınızın çözümlenmesi için gereklidir.",
     "oneri_en": "Keep it enabled on networked systems that need a stable hostname.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-importd.service": {
     "desc": "Konteyner/sanal makine imajlarını içeri aktarmayı yönetir.",
@@ -711,21 +865,21 @@
     "desc_en": "Collects system and service logs for the journal.",
     "suggestion": "Kapatmayın. Sistem hatalarının tespiti ve log takibi için kesinlikle gereklidir.",
     "oneri_en": "Do not disable; it is the primary logging service.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-logind.service": {
     "desc": "Kullanıcı oturumlarını, güç tuşlarını ve sistem erişimini yönetir.",
     "desc_en": "Tracks user sessions and handles power, sleep, and seat events.",
     "suggestion": "Kapatmayın. Oturum açma, kapama ve askıya alma işlemleri için gereklidir.",
     "oneri_en": "Keep it enabled; sessions and power management depend on it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-machine-id-commit.service": {
     "desc": "Geçici makine kimliğini (machine-id) kalıcı hale getirir.",
     "desc_en": "Writes a stable machine ID to persistent storage.",
     "suggestion": "Kapatmayın.",
     "oneri_en": "Do not disable; identity-dependent services expect it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-machined.service": {
     "desc": "Sanal makineleri ve kapsayıcıları (container) izler ve yönetir.",
@@ -739,21 +893,21 @@
     "desc_en": "Loads kernel modules listed in system configuration at boot.",
     "suggestion": "Kapatmayın. Donanım sürücülerinin ve çekirdek özelliklerinin çalışması için gereklidir.",
     "oneri_en": "Keep it enabled when modules must be present early in boot.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-oomd.service": {
     "desc": "Bellek yetersizliğinde (OOM) hangi uygulamanın sonlandırılacağına akıllı şekilde karar verir.",
     "desc_en": "Terminates selected processes before memory pressure freezes the system.",
     "suggestion": "Bellek yetersizliği yaşıyorsanız açık bırakın.",
     "oneri_en": "Keep it enabled on systems that need protection from memory exhaustion.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-pcrphase@.service": {
     "desc": "TPM 2.0 ölçüm kayıtlarını (PCR) başlangıç aşamalarında günceller.",
     "desc_en": "Extends TPM PCR measurements at defined boot phases.",
     "suggestion": "TPM kullanıyorsanız kapatmayın.",
     "oneri_en": "Keep it enabled when measured boot or TPM-backed security is used.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-quotacheck-root.service": {
     "desc": "Kök dosya sistemi için disk kullanım sınırlamalarını (quota) kontrol eder.",
@@ -767,14 +921,14 @@
     "desc_en": "Restores the random seed at boot and saves a new seed at shutdown.",
     "suggestion": "Açık kalması önerilir. Şifreleme ve güvenlik protokolleri için önemlidir.",
     "oneri_en": "Keep it enabled to improve early-boot entropy.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-remount-fs.service": {
     "desc": "Açılışta kök ve diğer dosya sistemlerini doğru izinlerle yeniden bağlar.",
     "desc_en": "Remounts the root and other filesystems with their final mount options.",
     "suggestion": "Kapatmayın. Dosya sistemlerinin yazma/okuma izinlerinin ayarlanması için gereklidir.",
     "oneri_en": "Do not disable; the system needs the final read-write mount state.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-repart.service": {
     "desc": "Disk bölümlerini otomatik olarak yeniden boyutlandırır ve oluşturur.",
@@ -788,7 +942,7 @@
     "desc_en": "Provides DNS resolution and local name-resolution services.",
     "suggestion": "DNS çözümlemesi için açık kalması önerilir. Alternatif bir DNS yöneticisi kullanmıyorsanız kapatmayın.",
     "oneri_en": "Keep it enabled unless another resolver manages DNS.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-rfkill.service": {
     "desc": "Kablosuz cihazların (Wi-Fi, Bluetooth) uçak modu veya güç durumlarını hatırlar.",
@@ -809,7 +963,7 @@
     "desc_en": "Applies kernel parameters from sysctl configuration at boot.",
     "suggestion": "Kapatmayın. Sistem ince ayarları ve kararlılığı için gereklidir.",
     "oneri_en": "Keep it enabled; kernel tuning and hardening depend on it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-sysext.service": {
     "desc": "Sistem görüntü uzantılarını (sysroot /var/lib/extensions) yükler.",
@@ -823,14 +977,14 @@
     "desc_en": "Creates system users and groups declared by packages.",
     "suggestion": "Kapatmayın. Kullanıcı hesapları için gereklidir.",
     "oneri_en": "Keep it enabled so service accounts exist before services start.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-timesyncd.service": {
     "desc": "Sistem saatini internet üzerindeki güvenilir sunucularla (NTP) otomatik eşitler.",
     "desc_en": "Synchronizes the system clock with NTP servers.",
     "suggestion": "Açık kalması önerilir. Yanlış sistem saati SSL sertifikası hatalarına ve tarayıcı sorunlarına yol açabilir.",
     "oneri_en": "Keep it enabled on networked systems that need accurate time.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-tmpfiles-clean.service": {
     "desc": "Geçici dosyaları arka planda belirli aralıklarla temizler.",
@@ -844,35 +998,35 @@
     "desc_en": "Creates essential device nodes early in boot.",
     "suggestion": "Kapatmayın. Erken aşama donanım erişimi için zorunludur.",
     "oneri_en": "Keep it enabled; early device access depends on it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-tmpfiles-setup-dev.service": {
     "desc": "Sistem başlangıcında donanım cihaz dosyalarını oluşturur.",
     "desc_en": "Creates device nodes and related files during startup.",
     "suggestion": "Kapatmayın. Donanım erişimi için gerekli cihaz düğümlerini oluşturur.",
     "oneri_en": "Keep it enabled for correct device node setup.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-tmpfiles-setup.service": {
     "desc": "Geçici dosya ve dizinleri açılışta oluşturur ve eski olanları temizler.",
     "desc_en": "Creates volatile directories and applies tmpfiles cleanup rules.",
     "suggestion": "Kapatmayın. Sistemin kararlı çalışması için geçici dizinlerin hazır olması şarttır.",
     "oneri_en": "Keep it enabled; many services expect standard temporary directories.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-tpm2-setup.service": {
     "desc": "TPM 2.0 güvenlik yongasını başlangıçta yapılandırır.",
     "desc_en": "Initializes TPM 2.0 devices and their persistent state.",
     "suggestion": "TPM kullanıyorsanız kapatmayın.",
     "oneri_en": "Keep it enabled on systems that use TPM-backed security.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-udev-load-credentials.service": {
     "desc": "Udev kuralları için gerekli yetki bilgilerini yükler.",
     "desc_en": "Loads credentials used by udev device rules.",
     "suggestion": "Kapatmayın.",
     "oneri_en": "Keep it enabled for credential-aware device handling.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-udev-settle.service": {
     "desc": "Tüm cihazların algılanmasını bekler. Açılışı gereksiz yere uzatabilir.",
@@ -886,48 +1040,69 @@
     "desc_en": "Replays coldplug device events so udev can detect existing hardware.",
     "suggestion": "Kapatmayın. Donanımların sistem tarafından doğru tanınması için kesinlikle gereklidir.",
     "oneri_en": "Keep it enabled; device discovery depends on it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-udevd.service": {
     "desc": "Cihaz algılama ve udev kurallarını yönetir. Yeni donanım takıldığında otomatik tanır.",
     "desc_en": "Runs the udev daemon that applies device rules and notifications.",
     "suggestion": "Kapatmayın. Donanım algılama ve sürücülerin yüklenmesi için kesinlikle gereklidir.",
     "oneri_en": "Do not disable; hardware detection and driver setup require it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-update-done.service": {
     "desc": "Sistem güncellemesinden sonra yapılması gereken işlemleri işaretler.",
     "desc_en": "Marks completion of system update bookkeeping.",
     "suggestion": "Kapatmayın.",
     "oneri_en": "Keep it enabled for update and cache invalidation hooks.",
-    "tip": "gerekli"
+    "tip": "required"
+  },
+  "systemd-update-utmp-runlevel.service": {
+    "desc": "Çalışma seviyesi değişikliklerini utmp kayıtlarına işler.",
+    "desc_en": "Records runlevel changes in the utmp login accounting database.",
+    "suggestion": "Oturum ve çalışma seviyesi kayıtları için açık bırakın.",
+    "oneri_en": "Keep it enabled to maintain runlevel and session accounting records.",
+    "tip": "required"
+  },
+  "systemd-update-utmp.service": {
+    "desc": "Açılış ve kapanış olaylarını utmp/wtmp kayıtlarına yazar.",
+    "desc_en": "Records boot and shutdown events in the utmp/wtmp login accounting files.",
+    "suggestion": "Oturum kayıtları için açık bırakın.",
+    "oneri_en": "Keep it enabled to preserve boot and login accounting records.",
+    "tip": "required"
   },
   "systemd-user-sessions.service": {
     "desc": "Kullanıcı oturumlarının başlatılmasına izin verir ve yönetir.",
     "desc_en": "Allows user login sessions once the system reaches the appropriate target.",
     "suggestion": "Kapatmayın. Kullanıcıların grafik arayüz veya konsol üzerinden oturum açabilmesi için gereklidir.",
     "oneri_en": "Keep it enabled; interactive logins depend on it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-userdbd.service": {
     "desc": "Kullanıcı veritabanı servisi. Kullanıcıları JSON üzerinden dinamik olarak sorgular.",
     "desc_en": "Serves user and group records through systemd's user database interface.",
     "suggestion": "Genelde açık bırakılır.",
     "oneri_en": "Keep it enabled for dynamic user lookup.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "systemd-vconsole-setup.service": {
     "desc": "Klavye düzeni ve konsol yazı tipini başlangıçta ayarlar.",
     "desc_en": "Configures the virtual console font and keymap.",
     "suggestion": "Kapatmayın. Klavye düzeni için gereklidir.",
     "oneri_en": "Keep it enabled for usable text consoles.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "systemd-zram-setup@.service": {
     "desc": "ZRAM (sıkıştırılmış sanal bellek) aygıtı oluşturur. RAM'i sıkıştırarak daha fazla bellek gibi kullanır.",
     "desc_en": "Creates compressed zram swap devices.",
     "suggestion": "ZRAM kullanmıyorsanız kapatılabilir.",
     "oneri_en": "Enable it when zram swap is part of the memory strategy.",
+    "tip": "suggestion"
+  },
+  "thermald.service": {
+    "desc": "Intel işlemcilerde platforma özgü soğutma politikaları uygulayarak termal sınırları korur.",
+    "desc_en": "Applies platform-specific thermal policies to keep Intel CPUs within safe temperature limits.",
+    "suggestion": "Intel dizüstülerde açık bırakın; termal yönetim gerekmiyorsa kapatılabilir.",
+    "oneri_en": "Keep it on Intel laptops; systems with other thermal management can disable it.",
     "tip": "suggestion"
   },
   "tlp.service": {
@@ -942,14 +1117,14 @@
     "desc_en": "Provides storage-device management and automount support over D-Bus.",
     "suggestion": "Açık kalmalıdır. USB bellek veya taşınabilir disklerin otomatik tanınması için gereklidir.",
     "oneri_en": "Keep it enabled for automatic mounting of removable media.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "ufw.service": {
     "desc": "Basit güvenlik duvarı (Uncomplicated Firewall). Ağ trafiğini kontrol eder.",
     "desc_en": "Runs the Uncomplicated Firewall service.",
     "suggestion": "Güvenlik duvarı istiyorsanız açık bırakın.",
     "oneri_en": "Keep it enabled when the host relies on ufw for network filtering.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "upower.service": {
     "desc": "Pil ve güç kaynağı bilgilerini yönetir. Dizüstü bilgisayarlarda pil ömrünü takip eder.",
@@ -963,21 +1138,49 @@
     "desc_en": "Creates per-user runtime directories for the current boot.",
     "suggestion": "Kapatmayın.",
     "oneri_en": "Keep it enabled; user services need these directories.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "user-runtime-dir@.service": {
     "desc": "Kullanıcıya ait geçici dosya dizinini (runtime dir) oluşturur.",
     "desc_en": "Creates the runtime directory for a specific user.",
     "suggestion": "Kapatmayın.",
     "oneri_en": "Keep it enabled; user session services depend on it.",
-    "tip": "kritik"
+    "tip": "critical"
   },
   "user@.service": {
     "desc": "Kullanıcıya ait systemd servislerini başlatır (user manager).",
     "desc_en": "Starts the systemd user manager for a login session.",
     "suggestion": "Kapatmayın. Kullanıcı servisleri için gereklidir.",
     "oneri_en": "Keep it enabled; user services are launched through it.",
-    "tip": "kritik"
+    "tip": "critical"
+  },
+  "vboxautostart-service.service": {
+    "desc": "VirtualBox sanal makinelerini sistem açılışında otomatik başlatır.",
+    "desc_en": "Starts VirtualBox virtual machines automatically during system boot.",
+    "suggestion": "Açılışta sanal makine başlatmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when virtual machines should not start automatically at boot.",
+    "tip": "suggestion"
+  },
+  "vboxballoonctrl-service.service": {
+    "desc": "VirtualBox bellek balon denetimini çalıştırarak konuk bellek kullanımını ayarlar.",
+    "desc_en": "Runs the VirtualBox memory balloon control service for guest memory management.",
+    "suggestion": "VirtualBox bellek balon denetimini kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when VirtualBox memory balloon control is not used.",
+    "tip": "suggestion"
+  },
+  "vboxdrv.service": {
+    "desc": "Sanal makineleri çalıştırmak için VirtualBox çekirdek modüllerini yükler.",
+    "desc_en": "Loads the VirtualBox kernel modules required to run virtual machines.",
+    "suggestion": "VirtualBox kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when VirtualBox is not used.",
+    "tip": "suggestion"
+  },
+  "vboxweb-service.service": {
+    "desc": "VirtualBox web hizmetini uzaktan yönetim için çalıştırır.",
+    "desc_en": "Runs the VirtualBox web service for remote management.",
+    "suggestion": "VirtualBox web arayüzünü kullanmıyorsanız kapatılabilir.",
+    "oneri_en": "Disable it when the VirtualBox web interface is not used.",
+    "tip": "suggestion"
   },
   "virtlockd.service": {
     "desc": "Sanal makine kilitlerini yönetir. Kaynak çatışmasını önler.",
@@ -1012,7 +1215,7 @@
     "desc_en": "Handles Wi-Fi authentication and encryption.",
     "suggestion": "Wi-Fi bağlantısı kullanıyorsanız kapatmayın. Sadece kablolu internet kullanıyorsanız kapatılabilir.",
     "oneri_en": "Keep it enabled for Wi-Fi; wired-only systems can disable it.",
-    "tip": "gerekli"
+    "tip": "required"
   },
   "wtmpdb-update-boot.service": {
     "desc": "Başlangıç kaydını wtmp veritabanına ekler (oturum kayıtları).",

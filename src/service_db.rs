@@ -13,9 +13,9 @@ const SERVICES_JSON: &str = include_str!("../assets/services_data.json");
 pub enum Tip {
     #[serde(rename = "suggestion")]
     Suggestion,
-    #[serde(rename = "kritik")]
+    #[serde(rename = "critical")]
     Critical,
-    #[serde(rename = "gerekli")]
+    #[serde(rename = "required")]
     Required,
 }
 
@@ -100,6 +100,13 @@ mod tests {
     fn known_service_is_classified() {
         let entry = lookup("NetworkManager.service").expect("known service");
         assert_eq!(entry.tip, Tip::Critical);
+        assert!(!entry.desc.is_empty());
+    }
+
+    #[test]
+    fn required_service_is_classified() {
+        let entry = lookup("archlinux-keyring-wkd-sync.service").expect("known service");
+        assert_eq!(entry.tip, Tip::Required);
         assert!(!entry.desc.is_empty());
     }
 
