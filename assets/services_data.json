@@ -21,6 +21,17 @@
     "critical": false,
     "required": false
   },
+  "amd-pstate-performance.service": {
+    "name": "amd-pstate-performance.service",
+    "description_tr": "AMD P-State işlemci frekans sürücüsünü performans moduna geçirir.",
+    "description_en": "Switches the AMD P-State CPU frequency driver to performance mode.",
+    "suggestion_tr": "Varsayılan güç tasarrufu davranışını tercih ediyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it if you prefer the default power-saving behavior.",
+    "category": "power",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
   "ananicy-cpp.service": {
     "name": "ananicy-cpp.service",
     "description_tr": "IO ve CPU önceliklerini otomatik ayarlayarak sistem yanıt verebilirliğini artırır.",
@@ -263,6 +274,17 @@
     "critical": true,
     "required": false
   },
+  "cpupower.service": {
+    "name": "cpupower.service",
+    "description_tr": "Açılışta CPU frekans ölçekleme ve governor ayarlarını uygular.",
+    "description_en": "Applies CPU frequency scaling and governor settings at boot.",
+    "suggestion_tr": "CPU frekans ayarlarını başka bir araç yönetiyorsa kapatılabilir.",
+    "suggestion_en": "Disable it when another tool manages CPU frequency settings.",
+    "category": "power",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
   "cups-browsed.service": {
     "name": "cups-browsed.service",
     "description_tr": "Ağdaki paylaşımlı yazıcıları otomatik olarak keşfeder ve sisteme ekler.",
@@ -360,6 +382,50 @@
     "category": "maintenance",
     "safe_to_disable": true,
     "critical": false,
+    "required": false
+  },
+  "dracut-cmdline.service": {
+    "name": "dracut-cmdline.service",
+    "description_tr": "Dracut initramfs içinde çekirdek komut satırı seçeneklerini işler.",
+    "description_en": "Processes kernel command-line options inside the dracut initramfs.",
+    "suggestion_tr": "Kapatmayın. Initramfs yapılandırması çekirdek komut satırına bağlıdır.",
+    "suggestion_en": "Do not disable; initramfs configuration depends on kernel command-line handling.",
+    "category": "boot",
+    "safe_to_disable": false,
+    "critical": true,
+    "required": false
+  },
+  "dracut-initqueue.service": {
+    "name": "dracut-initqueue.service",
+    "description_tr": "Kök aygıtı bulmak ve hazırlamak için dracut initqueue kancasını çalıştırır.",
+    "description_en": "Runs the dracut initqueue hook to locate and prepare the root device.",
+    "suggestion_tr": "Kapatmayın. Dracut initramfs ile açılışta kök aygıtın bulunması için gereklidir.",
+    "suggestion_en": "Do not disable; dracut needs it to find the root device during boot.",
+    "category": "boot",
+    "safe_to_disable": false,
+    "critical": true,
+    "required": false
+  },
+  "dracut-pre-udev.service": {
+    "name": "dracut-pre-udev.service",
+    "description_tr": "Initramfs içinde udev başlamadan önce çalışması gereken dracut kancalarını yürütür.",
+    "description_en": "Runs dracut hooks that must execute before udev starts in the initramfs.",
+    "suggestion_tr": "Kapatmayın. Initramfs aygıt hazırlığı bu kancalara bağlıdır.",
+    "suggestion_en": "Do not disable; initramfs device preparation depends on these hooks.",
+    "category": "boot",
+    "safe_to_disable": false,
+    "critical": true,
+    "required": false
+  },
+  "dracut-shutdown.service": {
+    "name": "dracut-shutdown.service",
+    "description_tr": "Kapanış sırasında dracut initramfs ortamını geri yükler.",
+    "description_en": "Restores the dracut initramfs environment during shutdown.",
+    "suggestion_tr": "Kapatmayın. Dosya sistemlerinin kapanışta temiz ayrılmasına yardımcı olur.",
+    "suggestion_en": "Do not disable; it helps tear down filesystems cleanly at shutdown.",
+    "category": "boot",
+    "safe_to_disable": false,
+    "critical": true,
     "required": false
   },
   "e2scrub_all.service": {
@@ -483,6 +549,17 @@
     "critical": true,
     "required": false
   },
+  "geoclue.service": {
+    "name": "geoclue.service",
+    "description_tr": "GeoClue üzerinden masaüstü uygulamalarına konum bilgisi sağlar.",
+    "description_en": "Provides location information to desktop applications through GeoClue.",
+    "suggestion_tr": "Konum kullanan uygulamalar kullanmıyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it if you do not use location-aware applications.",
+    "category": "desktop",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
   "getty@.service": {
     "name": "getty@.service",
     "description_tr": "Sanal konsolda (TTY) oturum açmayı sağlar. Ctrl+Alt+F1-F6 ile geçilen ekranlar.",
@@ -492,6 +569,17 @@
     "category": "system",
     "safe_to_disable": false,
     "critical": true,
+    "required": false
+  },
+  "gigabyte-brightness.service": {
+    "name": "gigabyte-brightness.service",
+    "description_tr": "Gigabyte dizüstü bilgisayarlarda ekran parlaklığı ayarlarını yöneten üretici/yerel yardımcı servis.",
+    "description_en": "Vendor or local helper that manages display brightness settings on Gigabyte laptops.",
+    "suggestion_tr": "Parlaklık denetimleri bu servis olmadan da çalışıyorsa kapatılabilir; açılış için kritik değildir.",
+    "suggestion_en": "Safe to disable when brightness controls work without it; it is not required for boot.",
+    "category": "hardware",
+    "safe_to_disable": true,
+    "critical": false,
     "required": false
   },
   "gpg-agent@.service": {
@@ -521,6 +609,28 @@
     "description_tr": "GRUB başlangıç yöneticisi ayarlarını başlangıçta kontrol eder.",
     "description_en": "Synchronizes bootloader metadata after kernel or GRUB updates.",
     "suggestion_tr": "Açık bırakılması önerilir. Çekirdek güncellemelerinin GRUB'a doğru işlenmesini sağlar.",
+    "suggestion_en": "Keep it enabled so kernel updates remain bootable.",
+    "category": "boot",
+    "safe_to_disable": false,
+    "critical": false,
+    "required": true
+  },
+  "grub-initrd-fallback.service": {
+    "name": "grub-initrd-fallback.service",
+    "description_tr": "Başarısız GRUB açılışlarını tespit eder ve grubenv içindeki fallback durumunu temizler.",
+    "description_en": "Detects failed GRUB boots and clears the fallback state in grubenv.",
+    "suggestion_tr": "Açık bırakılması önerilir. Yedek açılış girişinin güvenilir çalışmasını sağlar.",
+    "suggestion_en": "Keep it enabled so the GRUB fallback boot entry works reliably.",
+    "category": "boot",
+    "safe_to_disable": false,
+    "critical": false,
+    "required": true
+  },
+  "grub2-common.service": {
+    "name": "grub2-common.service",
+    "description_tr": "Ubuntu'da çekirdek veya GRUB güncellemelerinden sonra önyükleyici üst verilerini eşitler.",
+    "description_en": "Synchronizes GRUB bootloader metadata after kernel or GRUB updates on Ubuntu.",
+    "suggestion_tr": "Açık bırakın. Çekirdek güncellemelerinin önyüklenebilir kalmasını sağlar.",
     "suggestion_en": "Keep it enabled so kernel updates remain bootable.",
     "category": "boot",
     "safe_to_disable": false,
@@ -637,6 +747,28 @@
     "critical": true,
     "required": false
   },
+  "intel_lpmd.service": {
+    "name": "intel_lpmd.service",
+    "description_tr": "Boşta güç tüketimini azaltmak için Intel Düşük Güç Modu servisini çalıştırır.",
+    "description_en": "Runs Intel's Low Power Mode daemon to reduce idle power consumption.",
+    "suggestion_tr": "Desteklenen Intel CPU'larda açık bırakılması önerilir; sorun çıkarıyorsa kapatılabilir.",
+    "suggestion_en": "Keep it enabled on supported Intel CPUs; disable it if it causes problems.",
+    "category": "power",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
+  "kdump-tools.service": {
+    "name": "kdump-tools.service",
+    "description_tr": "Çökme çekirdeği yükler ve sistem çöktüğünde çekirdek belleğini dökümler.",
+    "description_en": "Loads a crash kernel and captures kernel memory when the system crashes.",
+    "suggestion_tr": "Çekirdek çökme dökümlerine ihtiyaç duymuyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it if you do not need kernel crash dumps.",
+    "category": "telemetry",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
   "keyboard-setup.service": {
     "name": "keyboard-setup.service",
     "description_tr": "Klavye düzenini açılışın erken evresinde yapılandırır.",
@@ -709,6 +841,17 @@
     "description_en": "Initializes hardware sensor monitoring for temperatures, fans, and voltages.",
     "suggestion_tr": "Donanım sıcaklıklarını veya fan hızlarını sürekli izleme ihtiyacınız yoksa kapatılabilir.",
     "suggestion_en": "Disable it when hardware sensor readings are not needed.",
+    "category": "telemetry",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
+  "lm_sensors.service": {
+    "name": "lm_sensors.service",
+    "description_tr": "Açılışta lm_sensors yapılandırmasını ve sensör limitlerini uygular.",
+    "description_en": "Applies lm_sensors configuration and sensor limits at boot.",
+    "suggestion_tr": "Sıcaklık ve fan hızlarını izlemiyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it if you do not monitor temperatures and fan speeds.",
     "category": "telemetry",
     "safe_to_disable": true,
     "critical": false,
@@ -824,6 +967,17 @@
     "critical": false,
     "required": false
   },
+  "netplan-configure.service": {
+    "name": "netplan-configure.service",
+    "description_tr": "Açılışta Netplan ağ yapılandırmasını üretir ve uygular.",
+    "description_en": "Generates and applies Netplan network configuration during boot.",
+    "suggestion_tr": "Kapatmayın. Netplan ile yönetilen ağ bağlantıları bu servise bağlıdır.",
+    "suggestion_en": "Do not disable; Netplan-managed network connections depend on it.",
+    "category": "network",
+    "safe_to_disable": false,
+    "critical": true,
+    "required": false
+  },
   "networkd-dispatcher.service": {
     "name": "networkd-dispatcher.service",
     "description_tr": "systemd-networkd bağlantı ve adres olaylarına yanıt olarak dispatcher betiklerini çalıştırır.",
@@ -921,6 +1075,28 @@
     "category": "maintenance",
     "safe_to_disable": true,
     "critical": false,
+    "required": false
+  },
+  "pci-latency.service": {
+    "name": "pci-latency.service",
+    "description_tr": "Ses ve gerçek zamanlı iş yükleri için PCI gecikme zamanlayıcılarını ayarlar.",
+    "description_en": "Tunes PCI latency timers for audio and real-time workloads.",
+    "suggestion_tr": "PCI gecikme ayarlarına ihtiyaç duymuyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it when custom PCI latency tuning is not needed.",
+    "category": "hardware",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
+  "plasmalogin.service": {
+    "name": "plasmalogin.service",
+    "description_tr": "Plasma Login Manager grafik oturum açma ekranını çalıştırır.",
+    "description_en": "Runs the Plasma Login Manager graphical login screen.",
+    "suggestion_tr": "Kapatmayın. Grafik oturum açma bu servise bağlıdır.",
+    "suggestion_en": "Do not disable; graphical login depends on it.",
+    "category": "desktop",
+    "safe_to_disable": false,
+    "critical": true,
     "required": false
   },
   "plocate-updatedb.service": {
@@ -1077,6 +1253,17 @@
     "critical": false,
     "required": false
   },
+  "rtirq.service": {
+    "name": "rtirq.service",
+    "description_tr": "Ses kartı kesmelerine gerçek zamanlı zamanlama önceliği verir.",
+    "description_en": "Raises real-time scheduling priority for sound card interrupts.",
+    "suggestion_tr": "Düşük gecikmeli ses gerekmiyorsa kapatılabilir.",
+    "suggestion_en": "Disable it when low-latency audio is not required.",
+    "category": "desktop",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
   "rtkit-daemon.service": {
     "name": "rtkit-daemon.service",
     "description_tr": "Gerçek zamanlı ses ve medya işlemleri için sistem önceliklerini yönetir.",
@@ -1087,6 +1274,17 @@
     "safe_to_disable": false,
     "critical": false,
     "required": true
+  },
+  "scx_loader.service": {
+    "name": "scx_loader.service",
+    "description_tr": "Çalışma zamanında sched_ext CPU zamanlayıcı profillerini yükler ve değiştirir.",
+    "description_en": "Loads and switches sched_ext CPU scheduler profiles at runtime.",
+    "suggestion_tr": "Özel zamanlayıcı profilleri kullanmıyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it if you do not use custom scheduler profiles.",
+    "category": "system",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
   },
   "sddm.service": {
     "name": "sddm.service",
@@ -1220,6 +1418,28 @@
     "critical": false,
     "required": false
   },
+  "sysstat-collect.service": {
+    "name": "sysstat-collect.service",
+    "description_tr": "Sysstat raporları için düzenli sistem etkinliği örnekleri toplar.",
+    "description_en": "Collects periodic system activity samples for sysstat reports.",
+    "suggestion_tr": "Sysstat raporları kullanmıyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it if you do not use sysstat reports.",
+    "category": "telemetry",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
+  "sysstat.service": {
+    "name": "sysstat.service",
+    "description_tr": "Açılışta sistem etkinliği muhasebe verilerini sıfırlar.",
+    "description_en": "Resets system activity accounting data at boot.",
+    "suggestion_tr": "Sysstat raporları kullanmıyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it if you do not use sysstat reports.",
+    "category": "telemetry",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
   "systemd-backlight.service": {
     "name": "systemd-backlight.service",
     "description_tr": "Ekran ve klavye arka ışık parlaklık ayarlarını sistem kapanırken kaydeder ve açılışta yükler.",
@@ -1319,6 +1539,17 @@
     "critical": false,
     "required": false
   },
+  "systemd-fsck-root.service": {
+    "name": "systemd-fsck-root.service",
+    "description_tr": "Açılışta kök dosya sistemini hatalara karşı denetler.",
+    "description_en": "Checks the root filesystem for errors during boot.",
+    "suggestion_tr": "Kapatmayın. Kök dosya sistemi bütünlüğü için gereklidir.",
+    "suggestion_en": "Do not disable; root filesystem integrity depends on it.",
+    "category": "storage",
+    "safe_to_disable": false,
+    "critical": true,
+    "required": false
+  },
   "systemd-fsck.service": {
     "name": "systemd-fsck.service",
     "description_tr": "Açılışta disk dosya sistemi bütünlüğünü ve sağlığını denetler.",
@@ -1373,6 +1604,17 @@
     "safe_to_disable": true,
     "critical": false,
     "required": false
+  },
+  "systemd-journal-catalog-update.service": {
+    "name": "systemd-journal-catalog-update.service",
+    "description_tr": "Paket güncellemelerinden sonra systemd journal ileti kataloğunu yeniden oluşturur.",
+    "description_en": "Rebuilds the systemd journal message catalog after package updates.",
+    "suggestion_tr": "Açık bırakın. Journal iletilerinin doğru görüntülenmesi için gereklidir.",
+    "suggestion_en": "Keep enabled so journal messages remain readable after updates.",
+    "category": "telemetry",
+    "safe_to_disable": false,
+    "critical": false,
+    "required": true
   },
   "systemd-journal-flush.service": {
     "name": "systemd-journal-flush.service",
@@ -1814,6 +2056,17 @@
     "critical": false,
     "required": true
   },
+  "update-notifier-download.service": {
+    "name": "update-notifier-download.service",
+    "description_tr": "Ubuntu güncelleme bildirimleri için paket üst verilerini indirir.",
+    "description_en": "Downloads package metadata for Ubuntu update notifications.",
+    "suggestion_tr": "Güncelleme bildirimlerini kullanmıyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it if you do not use Ubuntu update notifications.",
+    "category": "maintenance",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
   "upower.service": {
     "name": "upower.service",
     "description_tr": "Pil ve güç kaynağı bilgilerini yönetir. Dizüstü bilgisayarlarda pil ömrünü takip eder.",
@@ -1974,6 +2227,17 @@
     "description_en": "Applies a DPI-bypass service for filtered network paths.",
     "suggestion_tr": "Kullanmıyorsanız kapatılabilir.",
     "suggestion_en": "Disable it when deep-packet-inspection bypass is not needed.",
+    "category": "network",
+    "safe_to_disable": true,
+    "critical": false,
+    "required": false
+  },
+  "zapret2.service": {
+    "name": "zapret2.service",
+    "description_tr": "Ağ trafiği için Zapret2 DPI atlatma servisini çalıştırır.",
+    "description_en": "Runs the Zapret2 DPI bypass service for network traffic.",
+    "suggestion_tr": "DPI atlatma kullanmıyorsanız kapatılabilir.",
+    "suggestion_en": "Disable it when DPI bypass is not needed.",
     "category": "network",
     "safe_to_disable": true,
     "critical": false,

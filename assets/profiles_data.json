@@ -58,6 +58,7 @@
         "cups.service": "disable",
         "docker.service": "disable",
         "lm-sensors.service": "disable",
+        "lm_sensors.service": "disable",
         "ModemManager.service": "disable",
         "mysql.service": "disable",
         "NetworkManager-wait-online.service": "disable",
@@ -75,6 +76,7 @@
     "cups-browsed.service",
     "cups.service",
     "lm-sensors.service",
+    "lm_sensors.service",
     "ModemManager.service",
     "NetworkManager-wait-online.service",
     "smartmontools.service"
